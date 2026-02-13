@@ -1,161 +1,287 @@
 import { Scene } from "phaser";
 
+const TARGETS = [
+    {
+        id: "6.1", short: "Agua potable segura",
+        title: "AGUA POTABLE SEGURA Y ASEQUIBLE",
+        desc: "Para 2030, lograr el acceso universal y equitativo al agua potable segura y asequible para todos.",
+        emoji: "🚰"
+    },
+    {
+        id: "6.2", short: "Saneamiento e higiene",
+        title: "PONER FIN A LA DEFECACIÓN AL AIRE LIBRE Y ACCESO A SANEAMIENTO E HIGIENE",
+        desc: "Para 2030, lograr el acceso a servicios de saneamiento e higiene adecuados y equitativos para todos, poniendo fin a la defecación al aire libre, prestando especial atención a las mujeres, las niñas y las personas en situaciones de vulnerabilidad.",
+        emoji: "🚿"
+    },
+    {
+        id: "6.3", short: "Calidad del agua",
+        title: "MEJORAR LA CALIDAD DEL AGUA Y EL TRATAMIENTO DE AGUAS RESIDUALES",
+        desc: "Para 2030, mejorar la calidad del agua reduciendo la contaminación, eliminando el vertimiento y minimizando la emisión de productos químicos y materiales peligrosos, reduciendo a la mitad el porcentaje de aguas residuales sin tratar y aumentando el reciclado y la reutilización.",
+        emoji: "♻️"
+    },
+    {
+        id: "6.4", short: "Uso eficiente agua",
+        title: "AUMENTAR EL USO EFICIENTE DEL AGUA Y ASEGURAR EL SUMINISTRO",
+        desc: "Para 2030, aumentar considerablemente el uso eficiente de los recursos hídricos en todos los sectores y asegurar la sostenibilidad de la extracción y el abastecimiento de agua dulce para hacer frente a la escasez.",
+        emoji: "💧"
+    },
+    {
+        id: "6.5", short: "Gestión integrada hídrica",
+        title: "IMPLEMENTAR LA GESTIÓN INTEGRADA DE RECURSOS HÍDRICOS",
+        desc: "Para 2030, implementar la gestión integrada de los recursos hídricos a todos los niveles, incluso mediante la cooperación transfronteriza, según proceda.",
+        emoji: "🌍"
+    },
+    {
+        id: "6.6", short: "Proteger ecosistemas acuáticos",
+        title: "PROTEGER Y RESTABLECER LOS ECOSISTEMAS RELACIONADOS CON EL AGUA",
+        desc: "Para 2020, proteger y restablecer los ecosistemas relacionados con el agua, incluidos los bosques, las montañas, los humedales, los ríos, los acuíferos y los lagos.",
+        emoji: "🌿"
+    },
+    {
+        id: "6.a", short: "Cooperación internacional",
+        title: "AMPLIAR EL APOYO A PAÍSES EN DESARROLLO EN AGUA Y SANEAMIENTO",
+        desc: "Para 2030, ampliar la cooperación internacional y el apoyo a los países en desarrollo en actividades y programas relativos al agua y el saneamiento.",
+        emoji: "🤝"
+    },
+    {
+        id: "6.b", short: "Participación comunitaria",
+        title: "APOYAR LA PARTICIPACIÓN LOCAL EN LA GESTIÓN DEL AGUA",
+        desc: "Apoyar y fortalecer la participación de las comunidades locales en la mejora de la gestión del agua y el saneamiento.",
+        emoji: "🏘️"
+    },
+];
+
 export class WinScene extends Scene {
     endPoints = 0;
     endItems = 0;
+    currentPage = 0; // 0 = summary, 1..8 = targets, 9 = play again
 
-    constructor() {
-        super("WinScene");
-    }
+    constructor() { super("WinScene"); }
 
     init(data) {
-        this.cameras.main.fadeIn(600, 0x26, 0xBD, 0xE2);
+        this.cameras.main.fadeIn(500, 0x26, 0xBD, 0xE2);
         this.endPoints = data.points || 0;
         this.endItems = data.items || 0;
+        this.currentPage = 0;
     }
 
     create() {
+        this.showSummaryPage();
+    }
+
+    /* ───── Page: Summary (stats + intro) ───── */
+    showSummaryPage() {
+        this.clearPage();
         const { width, height } = this.scale;
-        const ODS_CYAN = 0x26BDE2;
 
-        // Bright cyan background
-        const bg = this.add.graphics();
-        bg.fillStyle(ODS_CYAN, 1);
-        bg.fillRect(0, 0, width, height);
+        this.drawBg(width, height);
+        this.drawFallingEmojis(width, height);
 
-        // Celebration emojis falling gently
-        const emojis = ["🎉", "💧", "⭐", "✨", "🌍", "🌊", "♻️"];
-        for (let i = 0; i < 18; i++) {
-            const emoji = emojis[i % emojis.length];
-            const txt = this.add.text(
-                Phaser.Math.Between(20, width - 20), -30, emoji,
-                { fontSize: `${Phaser.Math.Between(18, 36)}px` }
-            ).setAlpha(0.2);
-            this.tweens.add({
-                targets: txt,
-                y: height + 40,
-                x: txt.x + Phaser.Math.Between(-40, 40),
-                duration: Phaser.Math.Between(4000, 7000),
-                delay: i * 250,
-                repeat: -1
-            });
-        }
+        // Big "2030" watermark
+        this.add.text(width / 2, height / 2 + 20, "2030", {
+            fontSize: "150px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#ffffff",
+        }).setOrigin(0.5).setAlpha(0.08);
 
-        // Big "2030" background number
-        this.add.text(width / 2, height / 2, "2030", {
-            fontSize: "160px",
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontStyle: "bold",
-            color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.1);
-
-        // ── Panel ──
-        const panelGfx = this.add.graphics();
-        panelGfx.fillStyle(0x1A8AAB, 0.35);
-        panelGfx.fillRoundedRect(width / 2 - 220, 50, 440, 350, 8);
+        // Panel
+        this.drawPanel(width, 40, 420);
 
         // Title
-        this.add.text(width / 2, 85, "¡LLEGASTE AL 2030!", {
-            fontSize: "32px",
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontStyle: "bold",
-            color: "#ffffff",
+        this.add.text(width / 2, 70, "🏁 ¡LLEGASTE AL 2030! 🏁", {
+            fontSize: "28px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#ffffff",
         }).setOrigin(0.5);
 
-        // Subtitle
-        this.add.text(width / 2, 120, "AGUA LIMPIA Y SANEAMIENTO PARA TODOS", {
-            fontSize: "11px",
-            fontFamily: "Arial, Helvetica, sans-serif",
+        this.add.text(width / 2, 100, "AGUA LIMPIA Y SANEAMIENTO", {
+            fontSize: "11px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
         }).setOrigin(0.5).setAlpha(0.6);
 
-        // Thin separator
-        const lineGfx = this.add.graphics();
-        lineGfx.lineStyle(1, 0xffffff, 0.3);
-        lineGfx.lineBetween(width / 2 - 140, 142, width / 2 + 140, 142);
+        this.drawSeparator(width, 118);
 
         // Stats
-        this.add.text(width / 2, 175, [
+        this.add.text(width / 2, 148, [
             `⭐  Puntos: ${this.endPoints}`,
-            `💧  Items recolectados: ${this.endItems}`,
+            `💧  Items: ${this.endItems}`,
         ].join("\n"), {
-            fontSize: "18px",
-            fontFamily: "Arial, Helvetica, sans-serif",
-            color: "#ffffff",
-            align: "center",
-            lineSpacing: 10,
+            fontSize: "17px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff", align: "center", lineSpacing: 8,
         }).setOrigin(0.5);
 
-        // ODS-6 Message
-        this.add.text(width / 2, 260, [
-            "El ODS 6 busca garantizar agua limpia",
-            "y saneamiento para todos antes del 2030.",
-            "",
-            "¡Cada gota cuenta!",
-            "Cuidemos el agua, protejamos la vida.",
-        ].join("\n"), {
-            fontSize: "13px",
-            fontFamily: "Arial, Helvetica, sans-serif",
-            color: "#ffffff",
-            align: "center",
-            lineSpacing: 4
-        }).setOrigin(0.5).setAlpha(0.75);
+        this.drawSeparator(width, 195);
 
-        // ── Play again button (white, minimalist) ──
-        const btnY = 360;
-        const btnW = 230;
-        const btnH = 44;
-
-        const btnGfx = this.add.graphics();
-        btnGfx.fillStyle(0xffffff, 1);
-        btnGfx.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
-
-        const playAgainText = this.add.text(width / 2, btnY, "JUGAR DE NUEVO", {
-            fontSize: "18px",
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontStyle: "bold",
-            color: "#26BDE2",
+        // LAS METAS intro
+        this.add.text(width / 2, 220, "LAS METAS", {
+            fontSize: "22px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#ffffff",
         }).setOrigin(0.5);
 
-        const btnZone = this.add.rectangle(width / 2, btnY, btnW, btnH, 0xffffff, 0.001)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true });
+        this.add.text(width / 2, 250, "Todos podemos ayudar a cumplir los\nObjetivos Globales. Estas son las 8 metas\npara garantizar agua limpia y saneamiento.", {
+            fontSize: "12px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff", align: "center", lineSpacing: 5,
+        }).setOrigin(0.5).setAlpha(0.8);
 
-        btnZone.on("pointerover", () => {
-            btnGfx.clear();
-            btnGfx.fillStyle(0xe0f7fa, 1);
-            btnGfx.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
-        });
-        btnZone.on("pointerout", () => {
-            btnGfx.clear();
-            btnGfx.fillStyle(0xffffff, 1);
-            btnGfx.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 6);
-        });
-
-        this.tweens.add({
-            targets: playAgainText,
-            scaleX: 1.05,
-            scaleY: 1.05,
-            duration: 1000,
-            yoyo: true,
-            repeat: -1,
-            ease: "Sine.easeInOut"
+        // Target preview list
+        const startY = 305;
+        const cols = 2;
+        TARGETS.forEach((t, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const tx = width / 2 - 170 + col * 230;
+            const ty = startY + row * 28;
+            this.add.text(tx, ty, `${t.emoji} ${t.id} — ${t.short}`, {
+                fontSize: "11px", fontFamily: "Arial, Helvetica, sans-serif",
+                color: "#ffffff",
+            }).setAlpha(0.65);
         });
 
-        this.time.delayedCall(800, () => {
-            btnZone.on("pointerdown", () => {
-                this.scene.start("MenuScene");
-            });
-            this.input.keyboard.once("keydown", () => {
-                this.scene.start("MenuScene");
-            });
+        // Next button
+        this.makeButton(width / 2, height - 50, "VER METAS →", () => {
+            this.currentPage = 1;
+            this.showTargetPage(0);
         });
 
-        // Bottom credit
-        this.add.text(width / 2, height - 20, "ODS 6 · Agenda 2030 · Naciones Unidas", {
-            fontSize: "9px",
-            fontFamily: "Arial, Helvetica, sans-serif",
+        this.drawCredit(width, height);
+    }
+
+    /* ───── Page: Individual target ───── */
+    showTargetPage(index) {
+        this.clearPage();
+        const { width, height } = this.scale;
+        const t = TARGETS[index];
+
+        this.drawBg(width, height);
+
+        // Panel
+        this.drawPanel(width, 30, 400);
+
+        // Header: target number + emoji
+        this.add.text(width / 2, 55, `${t.emoji}  Meta ${t.id}`, {
+            fontSize: "14px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#ffffff",
+        }).setOrigin(0.5).setAlpha(0.6);
+
+        // Title
+        this.add.text(width / 2, 100, t.title, {
+            fontSize: "18px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#ffffff",
+            align: "center", wordWrap: { width: 400 }, lineSpacing: 4,
+        }).setOrigin(0.5, 0);
+
+        // Big emoji in center
+        this.add.text(width / 2, 220, t.emoji, {
+            fontSize: "60px",
+        }).setOrigin(0.5).setAlpha(0.15);
+
+        // Description
+        this.add.text(width / 2, 200, t.desc, {
+            fontSize: "13px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff", align: "center",
+            wordWrap: { width: 420 }, lineSpacing: 5,
+        }).setOrigin(0.5, 0).setAlpha(0.85);
+
+        // Page indicator
+        this.add.text(width / 2, height - 90, `${index + 1} / ${TARGETS.length}`, {
+            fontSize: "12px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.3);
+        }).setOrigin(0.5).setAlpha(0.4);
+
+        // Navigation dots
+        for (let i = 0; i < TARGETS.length; i++) {
+            const dotX = width / 2 - (TARGETS.length * 10) / 2 + i * 14;
+            const dot = this.add.circle(dotX, height - 75, 4, 0xffffff, i === index ? 0.9 : 0.25);
+        }
+
+        // Navigation buttons
+        const isLast = index === TARGETS.length - 1;
+
+        if (index > 0) {
+            this.makeButton(width / 2 - 120, height - 42, "← ANTERIOR", () => {
+                this.showTargetPage(index - 1);
+            }, 140);
+        }
+
+        if (isLast) {
+            this.makeButton(width / 2 + (index > 0 ? 120 : 0), height - 42, "VOLVER A JUGAR", () => {
+                this.scene.start("MenuScene");
+            }, 170);
+        } else {
+            this.makeButton(width / 2 + (index > 0 ? 120 : 0), height - 42, "SIGUIENTE →", () => {
+                this.showTargetPage(index + 1);
+            }, 150);
+        }
+
+        this.drawCredit(width, height);
+    }
+
+    /* ───── Helpers ───── */
+
+    clearPage() {
+        this.children.removeAll(true);
+    }
+
+    drawBg(w, h) {
+        const bg = this.add.graphics();
+        bg.fillStyle(0x26BDE2, 1);
+        bg.fillRect(0, 0, w, h);
+    }
+
+    drawPanel(w, y, h) {
+        const gfx = this.add.graphics();
+        gfx.fillStyle(0x1A8AAB, 0.3);
+        gfx.fillRoundedRect(w / 2 - 230, y, 460, h, 8);
+    }
+
+    drawSeparator(w, y) {
+        const gfx = this.add.graphics();
+        gfx.lineStyle(1, 0xffffff, 0.25);
+        gfx.lineBetween(w / 2 - 150, y, w / 2 + 150, y);
+    }
+
+    drawFallingEmojis(w, h) {
+        const emojis = ["🎉", "💧", "⭐", "✨", "🌍", "🌊", "♻️"];
+        for (let i = 0; i < 10; i++) {
+            const txt = this.add.text(
+                Phaser.Math.Between(20, w - 20), -30,
+                emojis[i % emojis.length],
+                { fontSize: `${Phaser.Math.Between(16, 30)}px` }
+            ).setAlpha(0.15);
+            this.tweens.add({
+                targets: txt, y: h + 30, duration: Phaser.Math.Between(5000, 8000),
+                delay: i * 300, repeat: -1,
+            });
+        }
+    }
+
+    drawCredit(w, h) {
+        this.add.text(w / 2, h - 12, "ODS 6 · Agenda 2030 · Naciones Unidas", {
+            fontSize: "8px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff",
+        }).setOrigin(0.5).setAlpha(0.25);
+    }
+
+    makeButton(x, y, label, callback, bw = 200) {
+        const bh = 38;
+        const gfx = this.add.graphics();
+        gfx.fillStyle(0xffffff, 1);
+        gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+
+        const txt = this.add.text(x, y, label, {
+            fontSize: "14px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontStyle: "bold", color: "#26BDE2",
+        }).setOrigin(0.5);
+
+        const zone = this.add.rectangle(x, y, bw, bh, 0xffffff, 0.001)
+            .setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+        zone.on("pointerover", () => {
+            gfx.clear(); gfx.fillStyle(0xe0f7fa, 1);
+            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+        });
+        zone.on("pointerout", () => {
+            gfx.clear(); gfx.fillStyle(0xffffff, 1);
+            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+        });
+        zone.on("pointerdown", callback);
     }
 }

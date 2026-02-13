@@ -4,8 +4,6 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
     health = 3;
     maxHealth = 3;
     isInvincible = false;
-    canShoot = true;
-    bullets = null;
     facing = 1; // 1=right, -1=left
 
     constructor(scene, x, y) {
@@ -20,12 +18,6 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
         this.body.setMaxVelocityY(600);
         this.body.setMaxVelocityX(300);
         this.body.setDragX(800);
-
-        this.bullets = scene.physics.add.group({
-            defaultKey: "water-bullet",
-            maxSize: 10,
-            runChildUpdate: false
-        });
     }
 
     jump() {
@@ -40,25 +32,6 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
         this.body.setVelocityY(-300);
     }
 
-    shoot() {
-        if (!this.canShoot) return;
-        const dir = this.facing;
-        const bullet = this.bullets.get(this.x + dir * 20, this.y, "water-bullet");
-        if (bullet) {
-            bullet.setActive(true).setVisible(true);
-            bullet.body.allowGravity = false;
-            bullet.body.setVelocityX(dir * 450);
-            this.canShoot = false;
-            this.scene.time.delayedCall(350, () => { this.canShoot = true; });
-            this.scene.time.delayedCall(1500, () => {
-                if (bullet.active) {
-                    bullet.setActive(false).setVisible(false);
-                    bullet.body.stop();
-                }
-            });
-        }
-    }
-
     takeDamage() {
         if (this.isInvincible) return;
         this.health--;
@@ -71,13 +44,16 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
         this.scene.cameras.main.shake(120, 0.008);
     }
 
-    handleMovement(cursors) {
+    handleMovement(cursors, hud) {
         const speed = 220;
-        if (cursors.left.isDown) {
+        const left = cursors.left.isDown || (hud && hud.touchLeft);
+        const right = cursors.right.isDown || (hud && hud.touchRight);
+
+        if (left) {
             this.body.setVelocityX(-speed);
             this.facing = -1;
             this.setFlipX(true);
-        } else if (cursors.right.isDown) {
+        } else if (right) {
             this.body.setVelocityX(speed);
             this.facing = 1;
             this.setFlipX(false);

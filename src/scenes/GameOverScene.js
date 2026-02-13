@@ -45,7 +45,7 @@ export class GameOverScene extends Scene {
         panelGfx.fillRoundedRect(width / 2 - 200, height / 2 - 140, 400, 280, 8);
 
         // Title
-        this.add.text(width / 2, height / 2 - 110, "GAME OVER", {
+        this.add.text(width / 2, height / 2 - 110, "FIN DEL JUEGO", {
             fontSize: "40px",
             fontFamily: "'Arial Black', 'Impact', sans-serif",
             fontStyle: "bold",
@@ -60,7 +60,7 @@ export class GameOverScene extends Scene {
         // Stats
         this.add.text(width / 2, height / 2 - 40, [
             `⭐  Puntos: ${this.endPoints}`,
-            `💧  Items recolectados: ${this.endItems}`,
+            `💧  Recolectados: ${this.endItems}`,
             `📊  Progreso al 2030: ${this.endProgress}%`,
         ].join("\n"), {
             fontSize: "16px",

@@ -73,7 +73,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5).setAlpha(0.85);
 
         // ── Controls info ──
-        this.add.text(contentX, 285, "⬆  Saltar     ⬅ ➡  Moverse     Z  Disparar 💦\n🦠  ¡Salta encima de los enemigos!", {
+        this.add.text(contentX, 285, "⬆  Saltar     ⬅ ➡  Moverse\n🦠  ¡Salta encima de los enemigos!", {
             fontSize: "12px",
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",

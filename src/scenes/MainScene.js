@@ -11,7 +11,6 @@ export class MainScene extends Scene {
 
     player = null;
     cursors = null;
-    zKey = null;
     platforms = null;
     collectiblesGroup = null;
     bacteriaGroup = null;
@@ -100,16 +99,6 @@ export class MainScene extends Scene {
             }
         });
 
-        // bullet kills bacteria
-        this.physics.add.overlap(this.player.bullets, this.bacteriaGroup, (bullet, bact) => {
-            if (!bact.alive) return;
-            bullet.setActive(false).setVisible(false);
-            bullet.body.stop();
-            bact.die(this);
-            this.points += 15;
-            this.events.emit("update-hud");
-        });
-
         // collect items
         this.physics.add.overlap(this.player, this.collectiblesGroup, (player, col) => {
             if (col.collected) return;
@@ -128,7 +117,6 @@ export class MainScene extends Scene {
 
         // ── Input ──
         this.cursors = this.input.keyboard.createCursorKeys();
-        this.zKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
 
         // ── HUD ──
         this.scene.launch("HudScene", {
@@ -249,10 +237,12 @@ export class MainScene extends Scene {
         if (this._ended) return;
         const p = this.player;
 
-        p.handleMovement(this.cursors);
+        // Read touch controls from HudScene
+        const hud = this.scene.get("HudScene");
 
-        if (this.cursors.up.isDown) p.jump();
-        if (Phaser.Input.Keyboard.JustDown(this.zKey)) p.shoot();
+        p.handleMovement(this.cursors, hud);
+
+        if (this.cursors.up.isDown || (hud && hud.touchJump)) p.jump();
 
         // fell off the world
         if (p.y > 560) { p.health = 0; this.gameOver(); }
