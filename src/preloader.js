@@ -1,53 +1,74 @@
-// Class to preload all the assets
-// Remember you can load this assets in another scene if you need it
+// Preloader: genera texturas desde emojis con canvas
 export class Preloader extends Phaser.Scene {
     constructor() {
         super({ key: "Preloader" });
     }
 
     preload() {
-        // Load all the assets
-        this.load.setPath("assets");
-        this.load.image("logo", "logo.png");
-        this.load.image("floor");
-        this.load.image("background", "background.png");
+        // Show loading text
+        const loadText = this.add.text(this.scale.width / 2, this.scale.height / 2, "💧 Cargando...", {
+            fontSize: "32px", fontFamily: "Arial"
+        }).setOrigin(0.5);
 
-        this.load.image("player", "player/player.png");
-        this.load.atlas("propulsion-fire", "player/propulsion/propulsion-fire.png", "player/propulsion/propulsion-fire_atlas.json");
-        this.load.animation("propulsion-fire-anim", "player/propulsion/propulsion-fire_anim.json");
-
-        // Bullets
-        this.load.image("bullet", "player/bullet.png");
-        this.load.image("flares")
-
-        // Enemies
-        this.load.atlas("enemy-blue", "enemies/enemy-blue/enemy-blue.png", "enemies/enemy-blue/enemy-blue_atlas.json");
-        this.load.animation("enemy-blue-anim", "enemies/enemy-blue/enemy-blue_anim.json");
-        this.load.image("enemy-bullet", "enemies/enemy-bullet.png");
-
-        // Fonts
-        this.load.bitmapFont("pixelfont", "fonts/pixelfont.png", "fonts/pixelfont.xml");
-        this.load.image("knighthawks", "fonts/knight3.png");
-
-        // Event to update the loading bar
         this.load.on("progress", (progress) => {
-            console.log("Loading: " + Math.round(progress * 100) + "%");
+            loadText.setText(`💧 Cargando... ${Math.round(progress * 100)}%`);
         });
     }
 
-    create() {
-        // Create bitmap font and load it in cache
-        const config = {
-            image: 'knighthawks',
-            width: 31,
-            height: 25,
-            chars: Phaser.GameObjects.RetroFont.TEXT_SET6,
-            charsPerRow: 10,
-            spacing: { x: 1, y: 1 }
-        };
-        this.cache.bitmapFont.add('knighthawks', Phaser.GameObjects.RetroFont.Parse(this, config));
+    /**
+     * Creates a canvas texture from an emoji string.
+     */
+    makeEmojiTexture(key, emoji, size = 48) {
+        const canvas = this.textures.createCanvas(key, size, size);
+        const ctx = canvas.getContext();
+        ctx.font = `${size * 0.85}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(emoji, size / 2, size / 2 + 2);
+        canvas.refresh();
+    }
 
-        // When all the assets are loaded go to the next scene
-        this.scene.start("SplashScene");
+    create() {
+        // ---- Player ----
+        this.makeEmojiTexture("player", "🚶", 48);
+        this.makeEmojiTexture("player-jump", "🏃", 48);
+
+        // ---- Collectibles (ODS-6 related) ----
+        this.makeEmojiTexture("water-bottle", "🧴", 40);
+        this.makeEmojiTexture("water-drop", "💧", 36);
+        this.makeEmojiTexture("glass-water", "🥛", 40);
+        this.makeEmojiTexture("fish", "🐟", 40);
+        this.makeEmojiTexture("tree", "🌳", 44);
+        this.makeEmojiTexture("globe", "🌍", 40);
+        this.makeEmojiTexture("recycle", "♻️", 40);
+        this.makeEmojiTexture("shower", "🚿", 40);
+        this.makeEmojiTexture("herb", "🌿", 36);
+        this.makeEmojiTexture("whale", "🐋", 44);
+
+        // ---- Enemies (bacteria / contaminants) ----
+        this.makeEmojiTexture("bacteria1", "🦠", 44);
+        this.makeEmojiTexture("bacteria2", "🧫", 44);
+        this.makeEmojiTexture("skull", "☠️", 44);
+        this.makeEmojiTexture("poop", "💩", 40);
+        this.makeEmojiTexture("factory", "🏭", 52);
+
+        // ---- Environment ----
+        this.makeEmojiTexture("wave", "🌊", 44);
+        this.makeEmojiTexture("cloud", "☁️", 64);
+        this.makeEmojiTexture("sun", "☀️", 64);
+        this.makeEmojiTexture("mountain", "⛰️", 56);
+        this.makeEmojiTexture("house", "🏠", 48);
+        this.makeEmojiTexture("heart", "❤️", 36);
+        this.makeEmojiTexture("star", "⭐", 36);
+        this.makeEmojiTexture("sparkle", "✨", 32);
+        this.makeEmojiTexture("shield", "🛡️", 40);
+
+        // ---- Bullet (water projectile) ----
+        this.makeEmojiTexture("water-bullet", "💦", 28);
+
+        // ---- Platforms ----
+        // We'll draw simple platform rectangles with code
+
+        this.scene.start("MenuScene");
     }
 }
