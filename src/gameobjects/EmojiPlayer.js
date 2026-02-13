@@ -1,56 +1,60 @@
 import { Physics } from "phaser";
 
 export class EmojiPlayer extends Physics.Arcade.Sprite {
-    /** @type {Phaser.Scene} */
-    scene = null;
     health = 3;
     maxHealth = 3;
     isInvincible = false;
     canShoot = true;
     bullets = null;
-    isOnGround = false;
+    facing = 1; // 1=right, -1=left
 
     constructor(scene, x, y) {
         super(scene, x, y, "player");
-        this.scene = scene;
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
         this.setScale(1.2);
-        this.body.setSize(30, 40);
-        this.body.setOffset(9, 4);
-        this.setCollideWorldBounds(false);
+        this.body.setSize(28, 38);
+        this.body.setOffset(10, 6);
+        this.setCollideWorldBounds(true);
         this.body.setMaxVelocityY(600);
+        this.body.setMaxVelocityX(300);
+        this.body.setDragX(800);
 
-        // Bullets group
         this.bullets = scene.physics.add.group({
             defaultKey: "water-bullet",
-            maxSize: 20,
+            maxSize: 10,
             runChildUpdate: false
         });
     }
 
     jump() {
-        if (this.body.blocked.down || this.body.touching.down) {
-            this.body.setVelocityY(-420);
+        if (this.body.blocked.down) {
+            this.body.setVelocityY(-480);
             this.setTexture("player-jump");
-            this.scene.time.delayedCall(300, () => {
-                this.setTexture("player");
-            });
         }
+    }
+
+    /** Mario-style bounce after stomping an enemy */
+    bounce() {
+        this.body.setVelocityY(-300);
     }
 
     shoot() {
         if (!this.canShoot) return;
-        const bullet = this.bullets.get(this.x + 20, this.y, "water-bullet");
+        const dir = this.facing;
+        const bullet = this.bullets.get(this.x + dir * 20, this.y, "water-bullet");
         if (bullet) {
-            bullet.setActive(true);
-            bullet.setVisible(true);
+            bullet.setActive(true).setVisible(true);
             bullet.body.allowGravity = false;
-            bullet.body.setVelocityX(400);
+            bullet.body.setVelocityX(dir * 450);
             this.canShoot = false;
-            this.scene.time.delayedCall(300, () => {
-                this.canShoot = true;
+            this.scene.time.delayedCall(350, () => { this.canShoot = true; });
+            this.scene.time.delayedCall(1500, () => {
+                if (bullet.active) {
+                    bullet.setActive(false).setVisible(false);
+                    bullet.body.stop();
+                }
             });
         }
     }
@@ -59,37 +63,27 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
         if (this.isInvincible) return;
         this.health--;
         this.isInvincible = true;
-
-        // Flash effect
         this.scene.tweens.add({
-            targets: this,
-            alpha: 0.3,
-            duration: 100,
-            yoyo: true,
-            repeat: 5,
-            onComplete: () => {
-                this.alpha = 1;
-                this.isInvincible = false;
-            }
+            targets: this, alpha: 0.3, duration: 80,
+            yoyo: true, repeat: 6,
+            onComplete: () => { this.alpha = 1; this.isInvincible = false; }
         });
-
-        this.scene.cameras.main.shake(150, 0.01);
+        this.scene.cameras.main.shake(120, 0.008);
     }
 
-    heal() {
-        if (this.health < this.maxHealth) {
-            this.health++;
+    handleMovement(cursors) {
+        const speed = 220;
+        if (cursors.left.isDown) {
+            this.body.setVelocityX(-speed);
+            this.facing = -1;
+            this.setFlipX(true);
+        } else if (cursors.right.isDown) {
+            this.body.setVelocityX(speed);
+            this.facing = 1;
+            this.setFlipX(false);
         }
-    }
-
-    update() {
-        // Clean up off-screen bullets
-        this.bullets.children.each((bullet) => {
-            if (bullet.active && (bullet.x > this.scene.scale.width + 50 || bullet.x < -50)) {
-                bullet.setActive(false);
-                bullet.setVisible(false);
-                bullet.body.stop();
-            }
-        });
+        if (this.body.blocked.down) {
+            this.setTexture(Math.abs(this.body.velocity.x) > 30 ? "player-jump" : "player");
+        }
     }
 }
