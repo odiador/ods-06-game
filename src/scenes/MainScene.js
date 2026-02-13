@@ -103,10 +103,10 @@ export class MainScene extends Scene {
         this.floatingPlatforms = this.physics.add.staticGroup();
 
         // ---- Collectibles group ----
-        this.collectiblesGroup = this.physics.add.group({ runChildUpdate: false });
+        this.collectiblesGroup = this.add.group({ runChildUpdate: false });
 
         // ---- Bacteria group ----
-        this.bacteriaGroup = this.physics.add.group({ runChildUpdate: false });
+        this.bacteriaGroup = this.add.group({ runChildUpdate: false });
 
         // ---- Player ----
         this.player = new EmojiPlayer(this, 120, height - 120);
@@ -229,7 +229,7 @@ export class MainScene extends Scene {
         this.floatingPlatforms.add(plat);
         plat.body.setSize(platWidth, 16);
         plat.body.setOffset(0, 0);
-        plat.refreshBody();
+        plat.body.updateFromGameObject();
 
         // Put a collectible on top sometimes
         if (Math.random() > 0.4) {
@@ -278,7 +278,7 @@ export class MainScene extends Scene {
         this.floatingPlatforms.children.each((p) => {
             if (p.active) {
                 p.x -= dx;
-                p.refreshBody();
+                p.body.updateFromGameObject();
                 if (p.x < -200) p.destroy();
             }
         });
