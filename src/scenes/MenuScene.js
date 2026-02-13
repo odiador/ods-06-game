@@ -64,7 +64,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5).setAlpha(0.7);
 
         // ── Game description (clean, light) ──
-        this.add.text(contentX, 220, "Recolecta agua limpia y recursos para\ngarantizar el saneamiento antes del 2030.", {
+        this.add.text(contentX, 220, "Explora el nivel, recolecta agua limpia\ny salta sobre las bacterias para llegar al 2030.", {
             fontSize: "14px",
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
@@ -73,7 +73,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5).setAlpha(0.85);
 
         // ── Controls info ──
-        this.add.text(contentX, 285, "⬆  Saltar     ⬅ ➡  Moverse     Z  Disparar 💦", {
+        this.add.text(contentX, 285, "⬆  Saltar     ⬅ ➡  Moverse     Z  Disparar 💦\n🦠  ¡Salta encima de los enemigos!", {
             fontSize: "12px",
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
