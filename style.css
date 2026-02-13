@@ -1,8 +1,10 @@
+* { box-sizing: border-box; }
+
 body {
     margin: 0;
     padding: 0;
     color: rgba(255, 255, 255, 0.87);
-    background-color: #1a7a9b;
+    background-color: #0e4a5c;
     overflow: hidden;
     touch-action: none;
     -webkit-touch-callout: none;
@@ -17,7 +19,6 @@ body {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    align-items: center;
 }
 
 #phaser-container {
@@ -27,6 +28,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    background-color: #1a7a9b;
 }
 
 #phaser-container canvas {
@@ -42,10 +44,9 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 16px 14px;
-    box-sizing: border-box;
-    background: linear-gradient(to bottom, #145f75, #0e4a5c);
-    border-top: 2px solid rgba(255, 255, 255, 0.15);
+    padding: 12px 20px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: #0b3d4d;
     z-index: 10;
     position: relative;
 }
@@ -53,28 +54,40 @@ body {
 .touch-left-group,
 .touch-right-group {
     display: flex;
-    gap: 12px;
+    gap: 14px;
 }
 
 #touch-controls button {
-    width: 72px;
-    height: 72px;
-    border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.4);
-    background: rgba(26, 138, 171, 0.7);
-    color: #fff;
-    font-size: 30px;
+    width: 68px;
+    height: 68px;
+    border-radius: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: rgba(38, 189, 226, 0.25);
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    transition: background 0.1s, border-color 0.1s;
+    transition: background 0.08s, border-color 0.08s, transform 0.08s;
+    outline: none;
+    padding: 0;
 }
 
 #touch-controls button:active,
 #touch-controls button.pressed {
-    background: rgba(38, 189, 226, 0.85);
-    border-color: rgba(255, 255, 255, 0.7);
+    background: rgba(38, 189, 226, 0.6);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(0.93);
+    color: #fff;
+}
+
+#btn-jump {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(38, 189, 226, 0.35);
+    border: 2px solid rgba(255, 255, 255, 0.3);
 }
