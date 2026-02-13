@@ -35,3 +35,23 @@ const config = {
 };
 
 new Game(config);
+
+/* ── HTML Touch Controls (multi-touch) ── */
+window.__touchControls = { left: false, right: false, jump: false };
+
+function setupTouchBtn(id, key) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const onDown = (e) => { e.preventDefault(); window.__touchControls[key] = true; btn.classList.add("pressed"); };
+    const onUp = (e) => { e.preventDefault(); window.__touchControls[key] = false; btn.classList.remove("pressed"); };
+    btn.addEventListener("touchstart", onDown, { passive: false });
+    btn.addEventListener("touchend", onUp, { passive: false });
+    btn.addEventListener("touchcancel", onUp, { passive: false });
+    btn.addEventListener("mousedown", onDown);
+    btn.addEventListener("mouseup", onUp);
+    btn.addEventListener("mouseleave", onUp);
+}
+
+setupTouchBtn("btn-left", "left");
+setupTouchBtn("btn-right", "right");
+setupTouchBtn("btn-jump", "jump");

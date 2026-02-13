@@ -9,10 +9,10 @@ export class HudScene extends Scene {
     itemsText = null;
     maxDistance = 12000;
 
-    // Touch controls state (read by MainScene)
-    touchLeft = false;
-    touchRight = false;
-    touchJump = false;
+    // Touch controls state (read by MainScene via window.__touchControls)
+    get touchLeft()  { return !!(window.__touchControls && window.__touchControls.left); }
+    get touchRight() { return !!(window.__touchControls && window.__touchControls.right); }
+    get touchJump()  { return !!(window.__touchControls && window.__touchControls.jump); }
 
     constructor() {
         super("HudScene");
@@ -20,13 +20,10 @@ export class HudScene extends Scene {
 
     init(data) {
         this.maxDistance = data.maxDistance || 12000;
-        this.touchLeft = false;
-        this.touchRight = false;
-        this.touchJump = false;
     }
 
     create() {
-        const { width, height } = this.scale;
+        const { width } = this.scale;
 
         // Semi-transparent top bar with ODS-6 dark cyan
         this.add.rectangle(0, 0, width, 52, 0x1A8AAB, 0.85).setOrigin(0, 0);
@@ -71,9 +68,6 @@ export class HudScene extends Scene {
         borderGfx.lineStyle(1, 0xffffff, 0.3);
         borderGfx.strokeRect(barX, 14, barWidth, 20);
 
-        // ── Touch controls (on-screen buttons) ──
-        this.createTouchControls(width, height);
-
         // Listen for updates from MainScene
         const mainScene = this.scene.get("MainScene");
         mainScene.events.on("update-hud", () => {
@@ -82,71 +76,6 @@ export class HudScene extends Scene {
         mainScene.events.on("update-progress", (progress) => {
             this.updateProgress(progress);
         });
-    }
-
-    createTouchControls(width, height) {
-        const btnSize = 64;
-        const padding = 16;
-        const bottomY = height - padding - btnSize / 2;
-
-        // Helper to create a circular touch button
-        const makeBtn = (x, y, label) => {
-            const gfx = this.add.graphics();
-            gfx.fillStyle(0x1A8AAB, 0.55);
-            gfx.fillCircle(x, y, btnSize / 2);
-            gfx.lineStyle(2, 0xffffff, 0.4);
-            gfx.strokeCircle(x, y, btnSize / 2);
-
-            const txt = this.add.text(x, y, label, {
-                fontSize: "28px",
-            }).setOrigin(0.5);
-
-            const zone = this.add.circle(x, y, btnSize / 2, 0xffffff, 0.001)
-                .setInteractive();
-
-            // Highlight on press
-            zone.on("pointerdown", () => {
-                gfx.clear();
-                gfx.fillStyle(0x26BDE2, 0.7);
-                gfx.fillCircle(x, y, btnSize / 2);
-                gfx.lineStyle(2, 0xffffff, 0.7);
-                gfx.strokeCircle(x, y, btnSize / 2);
-            });
-            zone.on("pointerup", () => {
-                gfx.clear();
-                gfx.fillStyle(0x1A8AAB, 0.55);
-                gfx.fillCircle(x, y, btnSize / 2);
-                gfx.lineStyle(2, 0xffffff, 0.4);
-                gfx.strokeCircle(x, y, btnSize / 2);
-            });
-            zone.on("pointerout", () => {
-                gfx.clear();
-                gfx.fillStyle(0x1A8AAB, 0.55);
-                gfx.fillCircle(x, y, btnSize / 2);
-                gfx.lineStyle(2, 0xffffff, 0.4);
-                gfx.strokeCircle(x, y, btnSize / 2);
-            });
-
-            return zone;
-        };
-
-        // ⬅ Left button — bottom-left
-        const leftBtn = makeBtn(padding + btnSize / 2, bottomY, "⬅");
-        leftBtn.on("pointerdown", () => { this.touchLeft = true; });
-        leftBtn.on("pointerup", () => { this.touchLeft = false; });
-        leftBtn.on("pointerout", () => { this.touchLeft = false; });
-
-        // ➡ Right button — next to left
-        const rightBtn = makeBtn(padding + btnSize + 14 + btnSize / 2, bottomY, "➡");
-        rightBtn.on("pointerdown", () => { this.touchRight = true; });
-        rightBtn.on("pointerup", () => { this.touchRight = false; });
-        rightBtn.on("pointerout", () => { this.touchRight = false; });
-
-        // ⬆ Jump button — bottom-right
-        const jumpBtn = makeBtn(width - padding - btnSize / 2, bottomY, "⬆");
-        jumpBtn.on("pointerdown", () => { this.touchJump = true; });
-        jumpBtn.on("pointerup", () => { this.touchJump = false; });
-        jumpBtn.on("pointerout", () => { this.touchJump = false; });
     }
 
     updateHud(mainScene) {
