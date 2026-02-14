@@ -52,11 +52,11 @@ export class EmojiPlayer extends Physics.Arcade.Sprite {
         if (left) {
             this.body.setVelocityX(-speed);
             this.facing = -1;
-            this.setFlipX(true);
+            this.setFlipX(false);
         } else if (right) {
             this.body.setVelocityX(speed);
             this.facing = 1;
-            this.setFlipX(false);
+            this.setFlipX(true);
         }
         if (this.body.blocked.down) {
             this.setTexture(Math.abs(this.body.velocity.x) > 30 ? "player-jump" : "player");
