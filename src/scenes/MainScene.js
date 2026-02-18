@@ -33,18 +33,23 @@ export class MainScene extends Scene {
         // ── Physics world bounds ──
         this.physics.world.setBounds(0, 0, W, H);
 
-        // ── Sky ──
-        const sky = this.add.graphics();
-        sky.fillGradientStyle(0x87CEEB, 0x87CEEB, 0x26BDE2, 0x26BDE2, 1);
-        sky.fillRect(0, 0, W, H);
+        // ── Solid cyan background (UN SDG 6 style) ──
+        const ODS_CYAN = 0x26BDE2;
+        const bg = this.add.graphics();
+        bg.fillStyle(ODS_CYAN, 1);
+        bg.fillRect(0, 0, W, H);
+        bg.setScrollFactor(0); // Fixed background
 
-        // ── Background decoration (parallax-ish) ──
-        for (let i = 0; i < 12; i++) {
-            this.add.image(300 + i * 550, 100, "cloud").setAlpha(0.5).setScrollFactor(0.3);
-        }
-        this.add.image(120, 60, "sun").setScale(1.5).setAlpha(0.85).setScrollFactor(0.2);
-        for (let i = 0; i < 8; i++) {
-            this.add.image(400 + i * 800, GY - 30, "mountain").setAlpha(0.25).setScale(1.6).setScrollFactor(0.4);
+        // ── Water drop icons in background (subtle, parallax) ──
+        for (let i = 0; i < 30; i++) {
+            const drop = this.add.text(
+                Phaser.Math.Between(40, W - 40),
+                Phaser.Math.Between(20, H - 60),
+                "💧",
+                { fontSize: `${Phaser.Math.Between(24, 56)}px` }
+            ).setAlpha(Phaser.Math.FloatBetween(0.05, 0.12))
+             .setOrigin(0.5)
+             .setScrollFactor(Phaser.Math.FloatBetween(0.1, 0.3));
         }
 
         // ── Platforms (static group) ──
@@ -135,10 +140,10 @@ export class MainScene extends Scene {
         ];
         for (const [sx, ex] of segments) {
             this.makePlatform(sx, GY, ex - sx, T);
-            // green grass line
-            const grass = this.add.graphics();
-            grass.fillStyle(0x228B22, 1);
-            grass.fillRect(sx, GY, ex - sx, 6);
+            // Subtle water line accent on top
+            const waterLine = this.add.graphics();
+            waterLine.fillStyle(0x1A8AAB, 0.6);
+            waterLine.fillRect(sx, GY, ex - sx, 3);
         }
     }
 
@@ -158,12 +163,13 @@ export class MainScene extends Scene {
     /** Helper: creates a visual + physics platform */
     makePlatform(x, y, w, h) {
         const gfx = this.add.graphics();
-        gfx.fillStyle(0x8B4513, 1);
-        gfx.fillRect(x, y, w, h);
-        if (h > 20) {
-            gfx.fillStyle(0x228B22, 1);
-            gfx.fillRect(x, y, w, 6);
-        }
+        // White/light cyan platforms with subtle shadow for depth
+        gfx.fillStyle(0xffffff, 0.9);
+        gfx.fillRoundedRect(x, y, w, h, 4);
+        // Subtle darker border for definition
+        gfx.lineStyle(2, 0x1A8AAB, 0.4);
+        gfx.strokeRoundedRect(x, y, w, h, 4);
+        
         const body = this.add.rectangle(x + w / 2, y + h / 2, w, h);
         body.setAlpha(0);
         this.platforms.add(body);

@@ -4,7 +4,7 @@ body {
     margin: 0;
     padding: 0;
     color: rgba(255, 255, 255, 0.87);
-    background-color: #0e4a5c;
+    background-color: #26BDE2;
     overflow: hidden;
     touch-action: pan-x pan-y;
     -webkit-touch-callout: none;
@@ -28,7 +28,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #1a7a9b;
+    background-color: #26BDE2;
     touch-action: none;
 }
 
@@ -50,7 +50,7 @@ body {
     gap: 20px;
     padding: 12px 20px;
     padding-bottom: max(12px, env(safe-area-inset-bottom));
-    background: #0b3d4d;
+    background: #1A8AAB;
     z-index: 10;
     position: relative;
 }
@@ -66,9 +66,9 @@ body {
     width: 68px;
     height: 68px;
     border-radius: 18px;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    background: rgba(38, 189, 226, 0.25);
-    color: rgba(255, 255, 255, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.85);
+    color: #26BDE2;
     font-size: 28px;
     display: flex;
     align-items: center;
@@ -87,16 +87,16 @@ body {
 
 #touch-controls button:active,
 #touch-controls button.pressed {
-    background: rgba(38, 189, 226, 0.6);
-    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 1);
+    border-color: rgba(255, 255, 255, 0.8);
     transform: scale(0.93);
-    color: #fff;
+    color: #1A8AAB;
 }
 
 #btn-jump {
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: rgba(38, 189, 226, 0.35);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.9);
+    border: 3px solid rgba(255, 255, 255, 0.5);
 }
