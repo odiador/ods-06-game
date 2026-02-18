@@ -9,8 +9,8 @@ import { WinScene } from "./scenes/WinScene";
 const config = {
     type: Phaser.AUTO,
     parent: "phaser-container",
-    width: 540,
-    height: 720,
+    width: 640,
+    height: 960,
     backgroundColor: "#26BDE2",
     pixelArt: false,
     scale: {
