@@ -1,259 +1,310 @@
 import { Scene } from "phaser";
-import { EmojiPlayer } from "../gameobjects/EmojiPlayer";
-import { Collectible } from "../gameobjects/Collectible";
-import { Bacteria } from "../gameobjects/Bacteria";
 
 export class MainScene extends Scene {
-    // world size
-    static WORLD_W = 3200;
-    static GROUND_Y = 480;
-    static TILE = 48;
-
     player = null;
     cursors = null;
-    platforms = null;
-    collectiblesGroup = null;
-    bacteriaGroup = null;
+    fallingItems = null;
     points = 0;
+    lives = 3;
+    progressTo2030 = 0; // 0 to 100
+    targetProgress = 80; // Win at 80% (shorter game)
     itemsCollected = 0;
+    gameEnded = false; // Flag to prevent multiple win/gameOver calls
+    isInvincible = false; // Temporary invincibility after losing a life
+    
+    goodItemTypes = [
+        { key: "water-drop", points: 5, progress: 4 },
+        { key: "water-bottle", points: 10, progress: 6 },
+        { key: "glass-water", points: 8, progress: 5 },
+        { key: "fish", points: 12, progress: 7 },
+        { key: "tree", points: 10, progress: 6 },
+        { key: "recycle", points: 15, progress: 8 },
+        { key: "shower", points: 8, progress: 5 },
+        { key: "herb", points: 6, progress: 4 },
+    ];
+    
+    badItemTypes = [
+        { key: "bacteria1", progress: -3 },
+        { key: "bacteria2", progress: -3 },
+        { key: "skull", progress: -5 },
+        { key: "poop", progress: -4 },
+        { key: "factory", progress: -6 },
+    ];
 
     constructor() { super("MainScene"); }
 
     init() {
         this.points = 0;
+        this.lives = 3;
+        this.progressTo2030 = 0;
         this.itemsCollected = 0;
+        this.gameEnded = false;
+        this.isInvincible = false;
     }
 
     create() {
-        const W = MainScene.WORLD_W;
-        const H = 540;
-        const GY = MainScene.GROUND_Y;
-        const T = MainScene.TILE;
-
-        // ── Physics world bounds ──
-        this.physics.world.setBounds(0, 0, W, H);
+        const W = 540;
+        const H = 960;
 
         // ── Solid cyan background (UN SDG 6 style) ──
         const ODS_CYAN = 0x26BDE2;
         const bg = this.add.graphics();
         bg.fillStyle(ODS_CYAN, 1);
         bg.fillRect(0, 0, W, H);
-        bg.setScrollFactor(0); // Fixed background
 
-        // ── Water drop icons in background (subtle, parallax) ──
-        for (let i = 0; i < 30; i++) {
-            const drop = this.add.text(
+        // ── Water drop icons in background (subtle) ──
+        for (let i = 0; i < 15; i++) {
+            this.add.text(
                 Phaser.Math.Between(40, W - 40),
                 Phaser.Math.Between(20, H - 60),
                 "💧",
-                { fontSize: `${Phaser.Math.Between(24, 56)}px` }
-            ).setAlpha(Phaser.Math.FloatBetween(0.05, 0.12))
-             .setOrigin(0.5)
-             .setScrollFactor(Phaser.Math.FloatBetween(0.1, 0.3));
+                { fontSize: `${Phaser.Math.Between(24, 48)}px` }
+            ).setAlpha(Phaser.Math.FloatBetween(0.05, 0.12)).setOrigin(0.5);
         }
 
-        // ── Platforms (static group) ──
-        this.platforms = this.physics.add.staticGroup();
+        // ── Player at bottom ──
+        this.player = this.physics.add.sprite(W / 2, H - 80, "player").setScale(1.5);
+        this.player.setCollideWorldBounds(true);
+        this.player.body.allowGravity = false;
+        this.player.body.setSize(28, 38);
+        this.player.setImmovable(true);
 
-        // -- Ground: series of platform tiles --
-        this.buildGround(GY, W, T);
+        // ── Falling items group ──
+        this.fallingItems = this.physics.add.group();
 
-        // -- Floating platforms --
-        this.buildPlatforms(GY, T);
-
-        // ── Collectibles ──
-        this.collectiblesGroup = this.add.group();
-        this.buildCollectibles(GY, T);
-
-        // ── Enemies ──
-        this.bacteriaGroup = this.add.group();
-        this.buildEnemies(GY, T);
-
-        // ── 2030 finish flag ──
-        this.add.text(W - 200, GY - 100, "🏁", { fontSize: "64px" }).setOrigin(0.5);
-        this.add.text(W - 200, GY - 160, "2030", {
-            fontSize: "42px", fontFamily: "'Arial Black', Impact, sans-serif",
-            fontStyle: "bold", color: "#ffffff",
-            stroke: "#1A8AAB", strokeThickness: 5
-        }).setOrigin(0.5);
-        this.finishZone = this.add.rectangle(W - 200, GY - 60, 60, 120, 0xffffff, 0).setOrigin(0.5);
-        this.physics.add.existing(this.finishZone, true);
-
-        // ── Player ──
-        this.player = new EmojiPlayer(this, 80, GY - 60);
-
-        // ── Collisions ──
-        this.physics.add.collider(this.player, this.platforms);
-        this.physics.add.collider(this.bacteriaGroup, this.platforms, (bact) => {
-            bact.turnIfBlocked();
-        });
-
-        // stomp or hurt
-        this.physics.add.overlap(this.player, this.bacteriaGroup, (player, bact) => {
-            if (!bact.alive || player.isInvincible) return;
-            // Mario stomp: player falling + above enemy
-            if (player.body.velocity.y > 0 && player.body.bottom <= bact.body.top + 20) {
-                bact.die(this);
-                player.bounce();
-                this.points += 20;
-                this.events.emit("update-hud");
-            } else {
-                player.takeDamage();
-                this.events.emit("update-hud");
-                if (player.health <= 0) this.gameOver();
-            }
-        });
-
-        // collect items
-        this.physics.add.overlap(this.player, this.collectiblesGroup, (player, col) => {
-            if (col.collected) return;
-            this.points += col.collect(this);
-            this.itemsCollected++;
-            this.events.emit("update-hud");
-        });
-
-        // finish line
-        this.physics.add.overlap(this.player, this.finishZone, () => this.win());
-
-        // ── Camera ──
-        this.cameras.main.setBounds(0, 0, W, H);
-        this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-        this.cameras.main.fadeIn(400, 0x26, 0xBD, 0xE2);
+        // ── Overlap detection ──
+        this.physics.add.overlap(this.player, this.fallingItems, this.collectItem, null, this);
 
         // ── Input ──
         this.cursors = this.input.keyboard.createCursorKeys();
 
+        // ── Spawn items periodically ──
+        this.time.addEvent({
+            delay: 700,
+            callback: this.spawnFallingItem,
+            callbackScope: this,
+            loop: true
+        });
+
+        // ── Camera fade in ──
+        this.cameras.main.fadeIn(400, 0x26, 0xBD, 0xE2);
+
         // ── HUD ──
         this.scene.launch("HudScene", {
-            maxDistance: W, health: this.player.health
+            maxDistance: 100,
+            lives: this.lives
         });
     }
 
-    /* ─────────── Level Builders ─────────── */
-
-    /** Build ground with gaps */
-    buildGround(GY, W, T) {
-        // Ground segments: [startX, endX]
-        const segments = [
-            [0, 900], [980, 1800], [1900, 2600],
-            [2700, W]
-        ];
-        for (const [sx, ex] of segments) {
-            this.makePlatform(sx, GY, ex - sx, T);
-            // Subtle water line accent on top
-            const waterLine = this.add.graphics();
-            waterLine.fillStyle(0x1A8AAB, 0.6);
-            waterLine.fillRect(sx, GY, ex - sx, 3);
-        }
-    }
-
-    /** Build floating platforms */
-    buildPlatforms(GY, T) {
-        const plats = [
-            [350, GY - 90, 120], [550, GY - 160, 100], [750, GY - 100, 80],
-            [1050, GY - 110, 140], [1250, GY - 180, 100], [1500, GY - 120, 90],
-            [1950, GY - 100, 120], [2150, GY - 170, 100], [2400, GY - 130, 110],
-            [2800, GY - 90, 130], [3050, GY - 160, 90],
-        ];
-        for (const [x, y, w] of plats) {
-            this.makePlatform(x, y, w, 14);
-        }
-    }
-
-    /** Helper: creates a visual + physics platform */
-    makePlatform(x, y, w, h) {
-        const gfx = this.add.graphics();
-        // White/light cyan platforms with subtle shadow for depth
-        gfx.fillStyle(0xffffff, 0.9);
-        gfx.fillRoundedRect(x, y, w, h, 4);
-        // Subtle darker border for definition
-        gfx.lineStyle(2, 0x1A8AAB, 0.4);
-        gfx.strokeRoundedRect(x, y, w, h, 4);
+    update() {
+        if (this.gameEnded) return; // Don't update if game has ended
         
-        const body = this.add.rectangle(x + w / 2, y + h / 2, w, h);
-        body.setAlpha(0);
-        this.platforms.add(body);
-    }
+        // Player movement
+        const speed = 300;
+        const hud = this.scene.get("HudScene");
+        const left = this.cursors.left.isDown || (hud && hud.touchLeft);
+        const right = this.cursors.right.isDown || (hud && hud.touchRight);
 
-    /** Place collectibles throughout the level */
-    buildCollectibles(GY, T) {
-        const spots = [
-            [200, GY - 50], [400, GY - 140], [600, GY - 210],
-            [900, GY - 50], [1100, GY - 160], [1300, GY - 230],
-            [1550, GY - 170], [1700, GY - 50],
-            [2000, GY - 150], [2200, GY - 220], [2500, GY - 180],
-            [2850, GY - 140], [3050, GY - 210],
-        ];
-        spots.forEach((pos, i) => {
-            const c = new Collectible(this, pos[0], pos[1], i);
-            this.collectiblesGroup.add(c);
+        if (left) {
+            this.player.setVelocityX(-speed);
+            this.player.setFlipX(false);
+        } else if (right) {
+            this.player.setVelocityX(speed);
+            this.player.setFlipX(true);
+        } else {
+            this.player.setVelocityX(0);
+        }
+
+        // Remove items that fell off screen
+        this.fallingItems.children.entries.forEach(item => {
+            if (item.y > 960 + 50) {
+                item.destroy();
+            }
         });
+
+        // Check win condition
+        if (this.progressTo2030 >= this.targetProgress) {
+            this.win();
+        }
+
+        // Check game over
+        if (this.lives <= 0) {
+            this.gameOver();
+        }
     }
 
-    /** Place enemies on ground and platforms */
-    buildEnemies(GY) {
-        const spots = [
-            [600, GY - 40], [1150, GY - 40], [1400, GY - 40],
-            [2100, GY - 40], [2500, GY - 40],
-            [2900, GY - 40],
-        ];
-        spots.forEach((pos, i) => {
-            const b = new Bacteria(this, pos[0], pos[1], i);
-            this.bacteriaGroup.add(b);
-        });
-    }
-
-    /* ─────────── End conditions ─────────── */
-
-    win() {
-        if (this._ended) return;
-        this._ended = true;
-        this.physics.pause();
-        // celebration
-        const emojis = ["🎉", "💧", "⭐", "✨", "🌍"];
-        for (let i = 0; i < 12; i++) {
-            const e = this.add.text(
-                this.player.x + Phaser.Math.Between(-100, 100), this.player.y - 40,
-                emojis[i % emojis.length], { fontSize: "28px" }
-            );
+    spawnFallingItem() {
+        if (this.gameEnded) return; // Don't spawn if game has ended
+        
+        const x = Phaser.Math.Between(50, 490);
+        const isGood = Math.random() > 0.3; // 70% good items, 30% bad
+        
+        let itemData, item;
+        
+        if (isGood) {
+            itemData = Phaser.Utils.Array.GetRandom(this.goodItemTypes);
+            item = this.fallingItems.create(x, -30, itemData.key);
+            item.setScale(2); // Double the size
+            item.itemData = itemData;
+            item.isGood = true;
+        } else {
+            itemData = Phaser.Utils.Array.GetRandom(this.badItemTypes);
+            item = this.fallingItems.create(x, -30, itemData.key);
+            item.setScale(2); // Double the size
+            item.itemData = itemData;
+            item.isGood = false;
+            
+            // Bad items pulse/shake
             this.tweens.add({
-                targets: e, y: e.y - 120, alpha: 0, duration: 1200, delay: i * 80,
-                onComplete: () => e.destroy()
+                targets: item,
+                scaleX: 2.3,
+                scaleY: 2.3,
+                duration: 400,
+                yoyo: true,
+                repeat: -1,
+                ease: "Sine.easeInOut"
             });
         }
-        this.time.delayedCall(1800, () => {
+        
+        item.setVelocityY(Phaser.Math.Between(220, 320));
+        item.body.allowGravity = true;
+        
+        // Gentle floating animation
+        this.tweens.add({
+            targets: item,
+            x: item.x + Phaser.Math.Between(-20, 20),
+            duration: Phaser.Math.Between(800, 1500),
+            yoyo: true,
+            repeat: -1,
+            ease: "Sine.easeInOut"
+        });
+    }
+
+    collectItem(player, item) {
+        if (item.collected) return;
+        item.collected = true;
+
+        const data = item.itemData;
+        
+        if (item.isGood) {
+            // Good item collected
+            this.points += data.points;
+            this.progressTo2030 = Math.min(100, this.progressTo2030 + data.progress);
+            this.itemsCollected++;
+            
+            // Visual feedback
+            const txt = this.add.text(item.x, item.y, `+${data.points} 💧`, {
+                fontSize: "18px",
+                fontFamily: "Arial",
+                color: "#ffffff",
+                stroke: "#1A8AAB",
+                strokeThickness: 3
+            }).setOrigin(0.5);
+            
+            this.tweens.add({
+                targets: txt,
+                y: txt.y - 50,
+                alpha: 0,
+                duration: 800,
+                onComplete: () => txt.destroy()
+            });
+            
+            // Sparkles
+            for (let i = 0; i < 5; i++) {
+                const sparkle = this.add.text(
+                    item.x + Phaser.Math.Between(-20, 20),
+                    item.y + Phaser.Math.Between(-20, 20),
+                    "✨",
+                    { fontSize: "16px" }
+                );
+                this.tweens.add({
+                    targets: sparkle,
+                    alpha: 0,
+                    scale: 1.5,
+                    duration: 600,
+                    onComplete: () => sparkle.destroy()
+                });
+            }
+        } else {
+            // Bad item hit - lose a life
+            if (this.isInvincible) {
+                item.destroy();
+                return;
+            }
+            
+            this.lives = Math.max(0, this.lives - 1);
+            this.progressTo2030 = Math.max(0, this.progressTo2030 + data.progress);
+            
+            // Temporary invincibility
+            this.isInvincible = true;
+            
+            // Flash player during invincibility
+            this.tweens.add({
+                targets: this.player,
+                alpha: 0.4,
+                duration: 150,
+                yoyo: true,
+                repeat: 9,
+                onComplete: () => { 
+                    this.player.alpha = 1;
+                    this.isInvincible = false;
+                }
+            });
+            
+            // Visual feedback
+            const txt = this.add.text(item.x, item.y, "-1 ❤️", {
+                fontSize: "24px",
+                fontFamily: "Arial",
+                color: "#ff4444",
+                stroke: "#000000",
+                strokeThickness: 4
+            }).setOrigin(0.5);
+            
+            this.tweens.add({
+                targets: txt,
+                y: txt.y - 50,
+                alpha: 0,
+                duration: 800,
+                onComplete: () => txt.destroy()
+            });
+            
+            // Screen shake
+            this.cameras.main.shake(200, 0.012);
+        }
+        
+        item.destroy();
+        this.events.emit("update-hud");
+        this.events.emit("update-progress", this.progressTo2030);
+    }
+
+    win() {
+        if (this.gameEnded) return; // Prevent multiple calls
+        this.gameEnded = true;
+        
+        this.physics.pause();
+        this.cameras.main.fadeOut(600, 0x26, 0xBD, 0xE2);
+        this.cameras.main.once("camerafadeoutcomplete", () => {
             this.scene.stop("HudScene");
-            this.scene.start("WinScene", { points: this.points, items: this.itemsCollected });
+            this.scene.start("WinScene", {
+                points: this.points,
+                items: this.itemsCollected
+            });
         });
     }
 
     gameOver() {
-        if (this._ended) return;
-        this._ended = true;
-        this.scene.stop("HudScene");
-        this.scene.start("GameOverScene", {
-            points: this.points, items: this.itemsCollected,
-            progress: Math.floor((this.player.x / MainScene.WORLD_W) * 100)
+        if (this.gameEnded) return; // Prevent multiple calls
+        this.gameEnded = true;
+        
+        this.physics.pause();
+        this.cameras.main.fadeOut(600, 0, 0, 0);
+        this.cameras.main.once("camerafadeoutcomplete", () => {
+            this.scene.stop("HudScene");
+            this.scene.start("GameOverScene", {
+                points: this.points,
+                items: this.itemsCollected,
+                progress: Math.round(this.progressTo2030)
+            });
         });
-    }
-
-    /* ─────────── Update ─────────── */
-
-    update() {
-        if (this._ended) return;
-        const p = this.player;
-
-        // Read touch controls from HudScene
-        const hud = this.scene.get("HudScene");
-
-        p.handleMovement(this.cursors, hud);
-
-        if (this.cursors.up.isDown || (hud && hud.touchJump)) p.jump();
-
-        // fell off the world
-        if (p.y > 560) { p.health = 0; this.gameOver(); }
-
-        // progress for HUD
-        this.events.emit("update-progress", p.x);
     }
 }

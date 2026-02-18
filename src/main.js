@@ -9,8 +9,8 @@ import { WinScene } from "./scenes/WinScene";
 const config = {
     type: Phaser.AUTO,
     parent: "phaser-container",
-    width: 960,
-    height: 540,
+    width: 540,
+    height: 960,
     backgroundColor: "#26BDE2",
     pixelArt: false,
     scale: {
@@ -20,7 +20,7 @@ const config = {
     physics: {
         default: "arcade",
         arcade: {
-            gravity: { y: 800 },
+            gravity: { y: 300 },
             // debug: true
         }
     },
@@ -39,7 +39,7 @@ function initGame() {
     new Game(config);
     
     /* ── HTML Touch Controls (multi-touch) ── */
-    window.__touchControls = { left: false, right: false, jump: false };
+    window.__touchControls = { left: false, right: false };
 
     function setupTouchBtn(id, key) {
         const btn = document.getElementById(id);
@@ -68,7 +68,6 @@ function initGame() {
 
     setupTouchBtn("btn-left", "left");
     setupTouchBtn("btn-right", "right");
-    setupTouchBtn("btn-jump", "jump");
 }
 
 // Wait for DOM to be ready

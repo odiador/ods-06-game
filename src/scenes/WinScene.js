@@ -78,65 +78,68 @@ export class WinScene extends Scene {
         this.drawFallingEmojis(width, height);
 
         // Big "2030" watermark
+        const watermarkSize = Math.min(220, width * 0.4);
         this.add.text(width / 2, height / 2 + 20, "2030", {
-            fontSize: "150px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontSize: `${watermarkSize}px`, fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
         }).setOrigin(0.5).setAlpha(0.08);
 
         // Panel
-        this.drawPanel(width, 40, 420);
+        this.drawPanel(width, 40, 550);
 
         // Title
-        this.add.text(width / 2, 70, "🏁 ¡LLEGASTE AL 2030! 🏁", {
-            fontSize: "28px", fontFamily: "'Arial Black', Impact, sans-serif",
+        const titleSize = Math.min(42, width * 0.078);
+        this.add.text(width / 2, 70, "¡LLEGASTE AL 2030!", {
+            fontSize: `${titleSize}px`, fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, 100, "AGUA LIMPIA Y SANEAMIENTO", {
-            fontSize: "11px", fontFamily: "Arial, Helvetica, sans-serif",
+        const subtitleSize = Math.min(16, width * 0.03);
+        this.add.text(width / 2, 120, "AGUA LIMPIA Y SANEAMIENTO", {
+            fontSize: `${subtitleSize}px`, fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
         }).setOrigin(0.5).setAlpha(0.6);
 
-        this.drawSeparator(width, 118);
+        this.drawSeparator(width, 148);
 
         // Stats
-        this.add.text(width / 2, 148, [
+        this.add.text(width / 2, 180, [
             `⭐  Puntos: ${this.endPoints}`,
             `💧  Items: ${this.endItems}`,
         ].join("\n"), {
-            fontSize: "17px", fontFamily: "Arial, Helvetica, sans-serif",
-            color: "#ffffff", align: "center", lineSpacing: 8,
+            fontSize: "24px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff", align: "center", lineSpacing: 10,
         }).setOrigin(0.5);
 
-        this.drawSeparator(width, 195);
+        this.drawSeparator(width, 245);
 
         // LAS METAS intro
-        this.add.text(width / 2, 220, "LAS METAS", {
-            fontSize: "22px", fontFamily: "'Arial Black', Impact, sans-serif",
+        this.add.text(width / 2, 280, "LAS METAS", {
+            fontSize: "32px", fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, 250, "Todos podemos ayudar a cumplir los\nObjetivos Globales. Estas son las 8 metas\npara garantizar agua limpia y saneamiento.", {
-            fontSize: "12px", fontFamily: "Arial, Helvetica, sans-serif",
-            color: "#ffffff", align: "center", lineSpacing: 5,
+        this.add.text(width / 2, 330, "Todos podemos ayudar a cumplir los\nObjetivos Globales. Estas son las 8 metas\npara garantizar agua limpia y saneamiento.", {
+            fontSize: "16px", fontFamily: "Arial, Helvetica, sans-serif",
+            color: "#ffffff", align: "center", lineSpacing: 6,
         }).setOrigin(0.5).setAlpha(0.8);
 
         // Target preview list
-        const startY = 305;
+        const startY = 400;
         const cols = 2;
         TARGETS.forEach((t, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
             const tx = width / 2 - 170 + col * 230;
-            const ty = startY + row * 28;
-            this.add.text(tx, ty, `${t.emoji} ${t.id} — ${t.short}`, {
-                fontSize: "11px", fontFamily: "Arial, Helvetica, sans-serif",
+            const ty = startY + row * 36;
+            this.add.text(tx, ty, `${t.short}`, {
+                fontSize: "14px", fontFamily: "Arial, Helvetica, sans-serif",
                 color: "#ffffff",
-            }).setAlpha(0.65);
+            }).setAlpha(0.7);
         });
 
         // Next button
-        this.makeButton(width / 2, height - 50, "VER METAS →", () => {
+        this.makeButton(width / 2, height - 80, "VER METAS →", () => {
             this.currentPage = 1;
             this.showTargetPage(0);
         });
@@ -153,43 +156,43 @@ export class WinScene extends Scene {
         this.drawBg(width, height);
 
         // Panel
-        this.drawPanel(width, 30, 400);
+        this.drawPanel(width, 30, 500);
 
         // Header: target number + emoji
         this.add.text(width / 2, 55, `${t.emoji}  Meta ${t.id}`, {
-            fontSize: "14px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontSize: "20px", fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.6);
+        }).setOrigin(0.5).setAlpha(0.7);
 
         // Title
         this.add.text(width / 2, 100, t.title, {
-            fontSize: "18px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontSize: "24px", fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
-            align: "center", wordWrap: { width: 400 }, lineSpacing: 4,
+            align: "center", wordWrap: { width: 460 }, lineSpacing: 6,
         }).setOrigin(0.5, 0);
 
         // Big emoji in center
-        this.add.text(width / 2, 220, t.emoji, {
-            fontSize: "60px",
+        this.add.text(width / 2, 250, t.emoji, {
+            fontSize: "80px",
         }).setOrigin(0.5).setAlpha(0.15);
 
         // Description
-        this.add.text(width / 2, 200, t.desc, {
-            fontSize: "13px", fontFamily: "Arial, Helvetica, sans-serif",
+        this.add.text(width / 2, 220, t.desc, {
+            fontSize: "17px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff", align: "center",
-            wordWrap: { width: 420 }, lineSpacing: 5,
-        }).setOrigin(0.5, 0).setAlpha(0.85);
+            wordWrap: { width: 460 }, lineSpacing: 6,
+        }).setOrigin(0.5, 0).setAlpha(0.9);
 
         // Page indicator
         this.add.text(width / 2, height - 90, `${index + 1} / ${TARGETS.length}`, {
-            fontSize: "12px", fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: "16px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.4);
+        }).setOrigin(0.5).setAlpha(0.5);
 
         // Navigation dots
         for (let i = 0; i < TARGETS.length; i++) {
             const dotX = width / 2 - (TARGETS.length * 10) / 2 + i * 14;
-            const dot = this.add.circle(dotX, height - 75, 4, 0xffffff, i === index ? 0.9 : 0.25);
+            const dot = this.add.circle(dotX, height - 75, 5, 0xffffff, i === index ? 0.9 : 0.25);
         }
 
         // Navigation buttons
@@ -227,9 +230,10 @@ export class WinScene extends Scene {
     }
 
     drawPanel(w, y, h) {
+        const panelW = Math.min(500, w - 20);
         const gfx = this.add.graphics();
         gfx.fillStyle(0x1A8AAB, 0.3);
-        gfx.fillRoundedRect(w / 2 - 230, y, 460, h, 8);
+        gfx.fillRoundedRect(w / 2 - panelW / 2, y, panelW, h, 8);
     }
 
     drawSeparator(w, y) {
@@ -244,8 +248,8 @@ export class WinScene extends Scene {
             const txt = this.add.text(
                 Phaser.Math.Between(20, w - 20), -30,
                 emojis[i % emojis.length],
-                { fontSize: `${Phaser.Math.Between(16, 30)}px` }
-            ).setAlpha(0.15);
+                { fontSize: `${Phaser.Math.Between(24, 40)}px` }
+            ).setAlpha(0.18);
             this.tweens.add({
                 targets: txt, y: h + 30, duration: Phaser.Math.Between(5000, 8000),
                 delay: i * 300, repeat: -1,
@@ -255,19 +259,19 @@ export class WinScene extends Scene {
 
     drawCredit(w, h) {
         this.add.text(w / 2, h - 12, "ODS 6 · Agenda 2030 · Naciones Unidas", {
-            fontSize: "8px", fontFamily: "Arial, Helvetica, sans-serif",
+            fontSize: "11px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.25);
+        }).setOrigin(0.5).setAlpha(0.3);
     }
 
     makeButton(x, y, label, callback, bw = 200) {
-        const bh = 38;
+        const bh = 50;
         const gfx = this.add.graphics();
         gfx.fillStyle(0xffffff, 1);
-        gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+        gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 6);
 
         const txt = this.add.text(x, y, label, {
-            fontSize: "14px", fontFamily: "'Arial Black', Impact, sans-serif",
+            fontSize: "18px", fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#26BDE2",
         }).setOrigin(0.5);
 
@@ -276,11 +280,11 @@ export class WinScene extends Scene {
 
         zone.on("pointerover", () => {
             gfx.clear(); gfx.fillStyle(0xe0f7fa, 1);
-            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 6);
         });
         zone.on("pointerout", () => {
             gfx.clear(); gfx.fillStyle(0xffffff, 1);
-            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 5);
+            gfx.fillRoundedRect(x - bw / 2, y - bh / 2, bw, bh, 6);
         });
         zone.on("pointerdown", callback);
     }
