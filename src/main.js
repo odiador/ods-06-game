@@ -10,7 +10,7 @@ const config = {
     type: Phaser.AUTO,
     parent: "phaser-container",
     width: 540,
-    height: 960,
+    height: 720,
     backgroundColor: "#26BDE2",
     pixelArt: false,
     scale: {
