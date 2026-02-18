@@ -74,7 +74,7 @@ export class HudScene extends Scene {
         borderGfx.strokeRect(barX, barY, barWidth, 24);
 
         // Year indicator
-        this.yearText = this.add.text(width / 2, 62, "2026", {
+        this.yearText = this.add.text(width / 2, 75, "2026", {
             fontSize: "28px",
             fontFamily: "'Arial Black', 'Impact', sans-serif",
             fontStyle: "bold",

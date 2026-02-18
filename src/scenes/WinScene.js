@@ -103,7 +103,7 @@ export class WinScene extends Scene {
         this.drawSeparator(width, 148);
 
         // Stats
-        this.add.text(width / 2, 180, [
+        this.add.text(width / 2, 200, [
             `⭐  Puntos: ${this.endPoints}`,
             `💧  Items: ${this.endItems}`,
         ].join("\n"), {
@@ -130,7 +130,7 @@ export class WinScene extends Scene {
         TARGETS.forEach((t, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
-            const tx = width / 2 - 170 + col * 230;
+            const tx = width / 2 - 200 + col * 230;
             const ty = startY + row * 36;
             this.add.text(tx, ty, `${t.short}`, {
                 fontSize: "14px", fontFamily: "Arial, Helvetica, sans-serif",

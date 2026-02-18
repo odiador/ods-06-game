@@ -29,18 +29,6 @@ export class MenuScene extends Scene {
             ).setAlpha(Phaser.Math.FloatBetween(0.06, 0.15)).setOrigin(0.5);
         }
 
-        // ── Left side: big "6" number (anchor visual like the UN poster) ──
-        const numberSize = Math.min(280, width * 0.52);
-        this.add.text(width * 0.18, height / 2 - 20, "6", {
-            fontSize: `${numberSize}px`,
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            fontStyle: "bold",
-            color: "#ffffff",
-        }).setOrigin(0.5).setAlpha(0.2);
-
-        // ── Main content area ──
-        const contentX = width / 2 + Math.min(40, width * 0.08);
-
         // "AGUA LIMPIA Y SANEAMIENTO" — title (bold, condensed, uppercase)
         const titleSize = Math.min(52, width * 0.096);
         this.add.text(width / 2, 100, "AGUA LIMPIA\nY SANEAMIENTO", {
@@ -56,11 +44,11 @@ export class MenuScene extends Scene {
         const lineWidth = Math.min(400, width - 40);
         const lineGfx = this.add.graphics();
         lineGfx.lineStyle(2, 0xffffff, 0.5);
-        lineGfx.lineBetween(contentX - lineWidth / 2, 215, contentX + lineWidth / 2, 215);
+        lineGfx.lineBetween(width / 2 - lineWidth / 2, 215, width / 2 + lineWidth / 2, 215);
 
         // ODS 6 subtitle
         const subtitleSize = Math.min(14, width * 0.026);
-        this.add.text(contentX, 235, "ODS 6 · OBJETIVO DE DESARROLLO SOSTENIBLE", {
+        this.add.text(width / 2, 235, "ODS 6 · OBJETIVO DE DESARROLLO SOSTENIBLE", {
             fontSize: `${subtitleSize}px`,
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
@@ -69,7 +57,7 @@ export class MenuScene extends Scene {
 
         // ── Game description (clean, light) ──
         const descSize = Math.min(20, width * 0.037);
-        this.add.text(contentX, 280, "Atrapa las gotas de agua limpia 💧\ny evita la contaminación.\n¡3 vidas para llegar al 2030!", {
+        this.add.text(width / 2, 300, "Atrapa las gotas de agua limpia 💧\ny evita la contaminación.\n¡3 vidas para llegar al 2030!", {
             fontSize: `${descSize}px`,
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
@@ -79,7 +67,7 @@ export class MenuScene extends Scene {
 
         // ── Controls info ──
         const controlSize = Math.min(16, width * 0.03);
-        this.add.text(contentX, 370, "⬅ ➡  Moverse\n✅  ¡Recolecta cosas buenas y evita las malas!", {
+        this.add.text(width / 2, 400, "⬅ ➡  Moverse\n¡Recolecta cosas buenas y evita las malas!", {
             fontSize: `${controlSize}px`,
             fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff",
@@ -94,10 +82,10 @@ export class MenuScene extends Scene {
 
         const btnBg = this.add.graphics();
         btnBg.fillStyle(0xffffff, 1);
-        btnBg.fillRoundedRect(contentX - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
+        btnBg.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
 
         const btnTextSize = Math.min(26, width * 0.048);
-        const startText = this.add.text(contentX, btnY, "COMENZAR", {
+        const startText = this.add.text(width / 2, btnY, "COMENZAR", {
             fontSize: `${btnTextSize}px`,
             fontFamily: "'Arial Black', 'Impact', sans-serif",
             fontStyle: "bold",
@@ -106,7 +94,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5);
 
         // Interactive hit zone
-        const btnZone = this.add.rectangle(contentX, btnY, btnW, btnH, 0xffffff, 0.001)
+        const btnZone = this.add.rectangle(width / 2, btnY, btnW, btnH, 0xffffff, 0.001)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
 
@@ -114,12 +102,12 @@ export class MenuScene extends Scene {
         btnZone.on("pointerover", () => {
             btnBg.clear();
             btnBg.fillStyle(0xe0f7fa, 1);
-            btnBg.fillRoundedRect(contentX - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
+            btnBg.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
         });
         btnZone.on("pointerout", () => {
             btnBg.clear();
             btnBg.fillStyle(0xffffff, 1);
-            btnBg.fillRoundedRect(contentX - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
+            btnBg.fillRoundedRect(width / 2 - btnW / 2, btnY - btnH / 2, btnW, btnH, 8);
         });
 
         // Gentle pulse on the button
