@@ -94,6 +94,9 @@ export class MainScene extends Scene {
             maxDistance: 100,
             lives: this.lives
         });
+        
+        // ── Enable touch controls ──
+        window.__gameActive = true;
     }
 
     update() {
@@ -280,6 +283,7 @@ export class MainScene extends Scene {
     win() {
         if (this.gameEnded) return; // Prevent multiple calls
         this.gameEnded = true;
+        window.__gameActive = false; // Disable touch controls
         
         this.physics.pause();
         this.cameras.main.fadeOut(600, 0x26, 0xBD, 0xE2);
@@ -295,6 +299,7 @@ export class MainScene extends Scene {
     gameOver() {
         if (this.gameEnded) return; // Prevent multiple calls
         this.gameEnded = true;
+        window.__gameActive = false; // Disable touch controls
         
         this.physics.pause();
         this.cameras.main.fadeOut(600, 0, 0, 0);

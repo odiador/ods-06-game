@@ -9,8 +9,8 @@ import { WinScene } from "./scenes/WinScene";
 const config = {
     type: Phaser.AUTO,
     parent: "phaser-container",
-    width: 640,
-    height: 960,
+    width: 420,
+    height: 900,
     backgroundColor: "#26BDE2",
     pixelArt: false,
     scale: {
@@ -38,36 +38,37 @@ const config = {
 function initGame() {
     new Game(config);
     
-    /* ── HTML Touch Controls (multi-touch) ── */
+    /* ── Invisible Touch Areas (multi-touch) ── */
     window.__touchControls = { left: false, right: false };
+    window.__gameActive = false; // Only active during gameplay
 
-    function setupTouchBtn(id, key) {
-        const btn = document.getElementById(id);
-        if (!btn) return;
+    function setupTouchArea(id, key) {
+        const area = document.getElementById(id);
+        if (!area) return;
         
-        const onDown = (e) => { 
+        const onDown = (e) => {
+            if (!window.__gameActive) return; // Only respond during gameplay
             e.preventDefault(); 
             e.stopPropagation();
-            window.__touchControls[key] = true; 
-            btn.classList.add("pressed"); 
+            window.__touchControls[key] = true;
         };
-        const onUp = (e) => { 
+        const onUp = (e) => {
+            if (!window.__gameActive) return; // Only respond during gameplay
             e.preventDefault(); 
             e.stopPropagation();
-            window.__touchControls[key] = false; 
-            btn.classList.remove("pressed"); 
+            window.__touchControls[key] = false;
         };
         
-        btn.addEventListener("touchstart", onDown, { passive: false });
-        btn.addEventListener("touchend", onUp, { passive: false });
-        btn.addEventListener("touchcancel", onUp, { passive: false });
-        btn.addEventListener("mousedown", onDown);
-        btn.addEventListener("mouseup", onUp);
-        btn.addEventListener("mouseleave", onUp);
+        area.addEventListener("touchstart", onDown, { passive: false });
+        area.addEventListener("touchend", onUp, { passive: false });
+        area.addEventListener("touchcancel", onUp, { passive: false });
+        area.addEventListener("mousedown", onDown);
+        area.addEventListener("mouseup", onUp);
+        area.addEventListener("mouseleave", onUp);
     }
 
-    setupTouchBtn("btn-left", "left");
-    setupTouchBtn("btn-right", "right");
+    setupTouchArea("touch-area-left", "left");
+    setupTouchArea("touch-area-right", "right");
 }
 
 // Wait for DOM to be ready

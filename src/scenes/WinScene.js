@@ -130,7 +130,7 @@ export class WinScene extends Scene {
         TARGETS.forEach((t, i) => {
             const col = i % cols;
             const row = Math.floor(i / cols);
-            const tx = width / 2 - 200 + col * 230;
+            const tx = width / 2 - 190 + col * 180;
             const ty = startY + row * 36;
             this.add.text(tx, ty, `${t.short}`, {
                 fontSize: "14px", fontFamily: "Arial, Helvetica, sans-serif",
@@ -168,7 +168,7 @@ export class WinScene extends Scene {
         this.add.text(width / 2, 100, t.title, {
             fontSize: "24px", fontFamily: "'Arial Black', Impact, sans-serif",
             fontStyle: "bold", color: "#ffffff",
-            align: "center", wordWrap: { width: 460 }, lineSpacing: 6,
+            align: "center", wordWrap: { width: 380 }, lineSpacing: 6,
         }).setOrigin(0.5, 0);
 
         // Big emoji in center
@@ -177,10 +177,10 @@ export class WinScene extends Scene {
         }).setOrigin(0.5).setAlpha(0.15);
 
         // Description
-        this.add.text(width / 2, 220, t.desc, {
+        this.add.text(width / 2, 320, t.desc, {
             fontSize: "17px", fontFamily: "Arial, Helvetica, sans-serif",
             color: "#ffffff", align: "center",
-            wordWrap: { width: 460 }, lineSpacing: 6,
+            wordWrap: { width: 380 }, lineSpacing: 6,
         }).setOrigin(0.5, 0).setAlpha(0.9);
 
         // Page indicator
