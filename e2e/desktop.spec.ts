@@ -29,7 +29,7 @@ test.describe('Desktop PC Compatibility & Performance Suite', () => {
             }
 
             await page.waitForTimeout(1000);
-            const screenshotDir = path.resolve('public/screenshots');
+            const screenshotDir = path.resolve('screenshots');
             await page.screenshot({ path: path.join(screenshotDir, `desktop-${res.name}.png`) });
         });
     }
@@ -104,7 +104,7 @@ test.describe('Desktop PC Compatibility & Performance Suite', () => {
             await page.keyboard.up('ArrowRight');
         }
 
-        const screenshotDir = path.resolve('public/screenshots');
+        const screenshotDir = path.resolve('screenshots');
         await page.screenshot({ path: path.join(screenshotDir, 'desktop-1080p-gameplay.png') });
     });
 });

@@ -29,7 +29,7 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite', () => {
         await page.waitForTimeout(1500);
 
         // Screenshot Menu Scene
-        const screenshotDir = path.resolve('public/screenshots');
+        const screenshotDir = path.resolve('screenshots');
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-scene.png') });
 
         expect(errors, `Found console errors: ${errors.join(', ')}`).toHaveLength(0);
@@ -87,7 +87,7 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite', () => {
         await page.waitForTimeout(3000);
 
         // Capture gameplay screenshot
-        const screenshotDir = path.resolve('public/screenshots');
+        const screenshotDir = path.resolve('screenshots');
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay.png') });
 
         // Ensure no fatal runtime errors occurred
