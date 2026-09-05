@@ -10,6 +10,8 @@ export const GameEvents = {
     HAZARD_HIT: 'hazard-hit',
     COMBO_UPDATED: 'combo-updated',
     MUTE_TOGGLED: 'mute-toggled',
+    SPEED_UPDATED: 'speed-updated',
+    DISTANCE_UPDATED: 'distance-updated',
     GAME_OVER: 'game-over',
     GAME_WIN: 'game-win'
 } as const;

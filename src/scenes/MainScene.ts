@@ -1,398 +1,345 @@
 import { Scene, Types } from 'phaser';
-import { EnergyCollectible } from '../gameobjects/EnergyCollectible';
-import { GridTechnician } from '../gameobjects/GridTechnician';
-import { HazardObstacle } from '../gameobjects/HazardObstacle';
+import { TrackObstacle } from '../gameobjects/TrackObstacle';
+import { WindGlider } from '../gameobjects/WindGlider';
+import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
-import { EnergyItemData, HazardItemData } from '../types/game';
 
 export class MainScene extends Scene {
-    private player!: GridTechnician;
+    private glider!: WindGlider;
     private cursors!: Types.Input.Keyboard.CursorKeys;
-    private fallingItems!: Phaser.Physics.Arcade.Group;
-    private particleEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
 
-    // Parallax background elements
-    private clouds: Phaser.GameObjects.TileSprite[] = [];
-    private conduitGfx!: Phaser.GameObjects.Graphics;
-    private conduitPhase: number = 0;
+    // Track layers
+    private trackTile!: Phaser.GameObjects.TileSprite;
+    private leftGrassTile!: Phaser.GameObjects.TileSprite;
+    private rightGrassTile!: Phaser.GameObjects.TileSprite;
 
-    private score: number = 0;
-    private lives: number = 3;
-    private cleanEnergyProgress: number = 0; // 0% to 100%
-    private combo: number = 1;
-    private maxCombo: number = 5;
-    private readonly targetProgress: number = 80;
-    private isGameActive: boolean = false;
+    // Wind turbines along the canyon sides
+    private leftTurbines: Phaser.GameObjects.Sprite[] = [];
+    private rightTurbines: Phaser.GameObjects.Sprite[] = [];
 
-    private readonly energyTypes: EnergyItemData[] = [
-        { key: 'solar', label: 'Solar', points: 15, progress: 6, glowColor: 0xFACC15 },
-        { key: 'wind', label: 'Eólica', points: 12, progress: 5, glowColor: 0x38BDF8 },
-        { key: 'battery', label: 'Batería', points: 20, progress: 8, glowColor: 0x22C55E },
-        { key: 'hydro', label: 'Hidroeléctrica', points: 10, progress: 5, glowColor: 0x06B6D4 },
-    ];
+    // Groups
+    private turbos!: Phaser.Physics.Arcade.Group;
+    private obstacles!: Phaser.Physics.Arcade.Group;
+    private batteries!: Phaser.Physics.Arcade.Group;
+    private finishLineObj?: Phaser.Physics.Arcade.Sprite;
 
-    private readonly hazardTypes: HazardItemData[] = [
-        { key: 'coal', label: 'Carbón', penalty: 4, damage: 1 },
-        { key: 'oil', label: 'Petróleo', penalty: 5, damage: 1 },
-        { key: 'co2', label: 'CO2', penalty: 4, damage: 1 },
-        { key: 'surge', label: 'Sobrecarga', penalty: 6, damage: 1 },
-    ];
+    // Telemetry & Race state
+    private distanceTraveled: number = 0; // meters (0 to 2,030)
+    private readonly targetDistance: number = 2030;
+    private cleanKwh: number = 0;
+    private raceStartTime: number = 0;
+    private isRaceActive: boolean = false;
+    private hasSpawnedFinishLine: boolean = false;
 
     constructor() {
         super('MainScene');
     }
 
     init(): void {
-        this.score = 0;
-        this.lives = 3;
-        this.cleanEnergyProgress = 0;
-        this.combo = 1;
-        this.isGameActive = true;
+        this.distanceTraveled = 0;
+        this.cleanKwh = 0;
+        this.isRaceActive = true;
+        this.hasSpawnedFinishLine = false;
         window.__gameActive = true;
-        this.clouds = [];
+        this.leftTurbines = [];
+        this.rightTurbines = [];
     }
 
     create(): void {
         const { width, height } = this.scale;
-
-        // Unlock sound on first touch/key
+        this.raceStartTime = this.time.now;
         SoundFX.unlock();
 
-        // ── 1. Layered Parallax Environment ──
-        this.createEnvironment(width, height);
+        // ── 1. Track & Canyon Borders ──
+        // Canyon grass borders (left: 0..40, right: 380..420)
+        this.leftGrassTile = this.add.tileSprite(20, height / 2, 40, height, 'grass_border').setDepth(1);
+        this.rightGrassTile = this.add.tileSprite(width - 20, height / 2, 40, height, 'grass_border').setDepth(1);
 
-        // ── 2. Particle Emitter for Energy Bursts ──
-        this.particleEmitter = this.add.particles(0, 0, 'spark', {
-            speed: { min: 80, max: 220 },
-            scale: { start: 2.2, end: 0 },
-            alpha: { start: 1, end: 0 },
-            lifespan: 600,
-            blendMode: 'ADD',
-            emitting: false
-        });
+        // Center gravel/dirt aerodynamic racing lane
+        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, 'substation_floor')
+            .setDepth(2)
+            .setAlpha(0.92);
 
-        // ── 3. Substation Floor Platform (Player stands on it) ──
-        const floorY = height - 40;
-        this.add.tileSprite(width / 2, floorY + 16, width, 32, 'substation_floor')
-            .setScale(1.0)
-            .setDepth(5);
+        // Rotating wind turbines along canyon ridges
+        for (let i = 0; i < 4; i++) {
+            const leftTurb = this.add.sprite(20, 150 + i * 220, 'wind').setScale(1.5).setDepth(3);
+            const rightTurb = this.add.sprite(width - 20, 80 + i * 220, 'wind').setScale(1.5).setDepth(3);
+            this.leftTurbines.push(leftTurb);
+            this.rightTurbines.push(rightTurb);
+        }
 
-        // Animated neon conduit line on top of floor
-        this.conduitGfx = this.add.graphics().setDepth(6);
+        // ── 2. Glider (Sled) ──
+        // Positioned at lower third of screen
+        this.glider = new WindGlider(this, width / 2, height - 160);
 
-        // ── 4. Player (Grid Technician) ──
-        this.player = new GridTechnician(this, width / 2, floorY - 14);
-        this.player.setDepth(10);
-
-        // ── 5. Groups & Overlaps ──
-        this.fallingItems = this.physics.add.group({
-            runChildUpdate: false
-        });
+        // ── 3. Groups & Overlaps ──
+        this.turbos = this.physics.add.group({ runChildUpdate: false });
+        this.obstacles = this.physics.add.group({ runChildUpdate: false });
+        this.batteries = this.physics.add.group({ runChildUpdate: false });
 
         this.physics.add.overlap(
-            this.player,
-            this.fallingItems,
-            this.handlePlayerCollision as unknown as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+            this.glider,
+            this.turbos,
+            this.handleTurboCollect as unknown as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
             undefined,
             this
         );
 
-        // ── 6. Controls ──
+        this.physics.add.overlap(
+            this.glider,
+            this.obstacles,
+            this.handleObstacleHit as unknown as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+            undefined,
+            this
+        );
+
+        this.physics.add.overlap(
+            this.glider,
+            this.batteries,
+            this.handleBatteryCollect as unknown as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback,
+            undefined,
+            this
+        );
+
+        // ── 4. Input ──
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
         }
 
-        // ── 7. Spawner ──
+        // ── 5. Spawner Timers ──
         this.time.addEvent({
-            delay: 720,
-            callback: this.spawnItem,
+            delay: 650,
+            callback: this.spawnTrackElements,
             callbackScope: this,
             loop: true
         });
 
-        // ── 8. Launch HUD ──
+        // ── 6. Launch Racing HUD ──
         this.scene.launch('HudScene', {
-            targetProgress: this.targetProgress,
-            initialLives: this.lives
+            targetDistance: this.targetDistance
         });
 
         this.cameras.main.fadeIn(300, 10, 14, 26);
     }
 
-    private createEnvironment(width: number, height: number): void {
-        // Sky gradient: dark deep twilight to electric slate
-        const skyGfx = this.add.graphics().setDepth(0);
-        skyGfx.fillGradientStyle(0x050811, 0x050811, 0x0B132B, 0x0E1A38, 1);
-        skyGfx.fillRect(0, 0, width, height);
+    update(_time: number, delta: number): void {
+        if (!this.isRaceActive) return;
 
-        // Distant stars / clean energy signals
-        for (let i = 0; i < 24; i++) {
-            const starX = Phaser.Math.Between(10, width - 10);
-            const starY = Phaser.Math.Between(10, height - 250);
-            const star = this.add.circle(starX, starY, Phaser.Math.FloatBetween(1, 2), 0xFACC15, 0.45).setDepth(1);
-            this.tweens.add({
-                targets: star,
-                alpha: 0.1,
-                duration: Phaser.Math.Between(1000, 2500),
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.easeInOut'
-            });
-        }
+        // Current speed factor in m/s (e.g. 90 km/h = 25 m/s)
+        const metersPerSecond = (this.glider.speed / 3.6);
+        const metersThisFrame = metersPerSecond * (delta / 1000);
+        this.distanceTraveled = Math.min(this.targetDistance, this.distanceTraveled + metersThisFrame);
 
-        // Layer 2: Drifting clouds
-        const cloud1 = this.add.tileSprite(width / 2, 180, width, 48, 'clouds').setDepth(2).setAlpha(0.5);
-        const cloud2 = this.add.tileSprite(width / 2, 280, width, 48, 'clouds').setDepth(2).setAlpha(0.35);
-        this.clouds.push(cloud1, cloud2);
+        // Scroll track and grass tiles proportionally to speed
+        const scrollSpeed = this.glider.speed * (delta / 1000) * 12;
+        this.trackTile.tilePositionY -= scrollSpeed;
+        this.leftGrassTile.tilePositionY -= scrollSpeed;
+        this.rightGrassTile.tilePositionY -= scrollSpeed;
 
-        // Layer 3: Distant Eco-Smart City Skyline silhouette
-        const skylineY = height - 120;
-        this.add.tileSprite(width / 2, skylineY, width, 96, 'city_skyline')
-            .setDepth(3)
-            .setTileScale(2, 2)
-            .setAlpha(0.85);
-
-        // Small green/yellow glowing antenna beacons on city skyline
-        const beacon = this.add.circle(width * 0.48, skylineY - 42, 2.5, 0x22C55E, 0.9).setDepth(4);
-        this.tweens.add({
-            targets: beacon,
-            alpha: 0.2,
-            duration: 800,
-            yoyo: true,
-            repeat: -1
+        // Move roadside turbines
+        const { height } = this.scale;
+        [...this.leftTurbines, ...this.rightTurbines].forEach((t) => {
+            t.y += scrollSpeed * 0.8;
+            t.angle += 3; // Spin blades
+            if (t.y > height + 50) {
+                t.y = -50;
+            }
         });
-    }
 
-    update(): void {
-        if (!this.isGameActive) return;
-
-        // Animate drifting clouds (parallax)
-        if (this.clouds[0]) this.clouds[0].tilePositionX += 0.25;
-        if (this.clouds[1]) this.clouds[1].tilePositionX += 0.45;
-
-        // Animate glowing power conduit on the floor
-        this.animateFloorConduit();
-
-        // Player input handling
+        // Steering Controls
         const touch = window.__touchControls;
         const left = (this.cursors && this.cursors.left.isDown) || (touch && touch.left);
         const right = (this.cursors && this.cursors.right.isDown) || (touch && touch.right);
 
-        if (left) {
-            this.player.moveLeft();
-        } else if (right) {
-            this.player.moveRight();
+        // Keep glider inside canyon track lane
+        const minX = 60;
+        const maxX = this.scale.width - 60;
+
+        if (left && this.glider.x > minX) {
+            this.glider.steerLeft();
+        } else if (right && this.glider.x < maxX) {
+            this.glider.steerRight();
         } else {
-            this.player.stopMovement();
+            this.glider.centerSteering();
         }
 
-        // Item update & Magnetism check
+        // Clamp glider inside bounds
+        if (this.glider.x < minX) this.glider.x = minX;
+        if (this.glider.x > maxX) this.glider.x = maxX;
+
+        // Move active track items toward player (simulate downward descent)
+        this.updateTrackObjects(scrollSpeed);
+
+        // Check if finish line should spawn (when within 50m of goal)
+        if (this.distanceTraveled >= this.targetDistance - 50 && !this.hasSpawnedFinishLine) {
+            this.spawnFinishLine();
+        }
+
+        // Check race finish condition
+        if (this.distanceTraveled >= this.targetDistance) {
+            this.finishRace();
+        }
+
+        // Emit telemetry to HUD
+        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(this.glider.speed));
+        EventBus.emit(GameEvents.DISTANCE_UPDATED, {
+            current: Math.round(this.distanceTraveled),
+            target: this.targetDistance,
+            progress: (this.distanceTraveled / this.targetDistance) * 100
+        });
+    }
+
+    private updateTrackObjects(scrollSpeed: number): void {
         const { height } = this.scale;
-        const items = this.fallingItems.getChildren() as (EnergyCollectible | HazardObstacle)[];
-        const magnetDistance = 90; // Pixels
 
-        for (let i = items.length - 1; i >= 0; i--) {
-            const item = items[i];
-
-            // Clean up off-screen
-            if (item.y > height + 40) {
-                // If a clean item falls off screen without being caught, reset combo!
-                if (item instanceof EnergyCollectible && !item.isCollected) {
-                    this.resetCombo();
-                }
-                item.destroy();
-                continue;
-            }
-
-            // Magnetic attraction for clean energy items
-            if (item instanceof EnergyCollectible && !item.isCollected) {
-                const dist = Phaser.Math.Distance.Between(item.x, item.y, this.player.x, this.player.y);
-                if (dist < magnetDistance) {
-                    item.pullTowards(this.player.x, this.player.y);
-                }
-            }
-        }
-    }
-
-    private animateFloorConduit(): void {
-        const { width, height } = this.scale;
-        const floorTopY = height - 40;
-
-        this.conduitPhase += 0.08;
-        this.conduitGfx.clear();
-
-        // Glowing pulse line along the substation lip
-        this.conduitGfx.lineStyle(2, 0x00E5FF, 0.85);
-        this.conduitGfx.lineBetween(0, floorTopY, width, floorTopY);
-
-        // Moving pulse dot along the conduit
-        const pulseX = (Math.sin(this.conduitPhase) * 0.5 + 0.5) * width;
-        this.conduitGfx.fillStyle(0xFFFFFF, 1);
-        this.conduitGfx.fillCircle(pulseX, floorTopY, 3);
-    }
-
-    private spawnItem(): void {
-        if (!this.isGameActive) return;
-
-        const { width } = this.scale;
-        const spawnX = Phaser.Math.Between(40, width - 40);
-
-        // 70% chance of clean energy, 30% chance of hazard
-        const isClean = Math.random() < 0.70;
-
-        if (isClean) {
-            const data = Phaser.Utils.Array.GetRandom(this.energyTypes) as EnergyItemData;
-            const item = new EnergyCollectible(this, spawnX, -30, data);
-            this.fallingItems.add(item);
-            item.setVelocityY(Phaser.Math.Between(180, 250));
-        } else {
-            const data = Phaser.Utils.Array.GetRandom(this.hazardTypes) as HazardItemData;
-            const hazard = new HazardObstacle(this, spawnX, -30, data);
-            this.fallingItems.add(hazard);
-            hazard.setVelocityY(Phaser.Math.Between(210, 290));
-        }
-    }
-
-    private handlePlayerCollision(
-        _playerObj: Phaser.GameObjects.GameObject,
-        itemObj: Phaser.GameObjects.GameObject
-    ): void {
-        if (!this.isGameActive) return;
-
-        if (itemObj instanceof EnergyCollectible) {
-            if (itemObj.isCollected) return;
-            this.collectEnergy(itemObj);
-        } else if (itemObj instanceof HazardObstacle) {
-            if (itemObj.isTriggered || this.player.isInvincible) return;
-            this.hitHazard(itemObj);
-        }
-    }
-
-    private collectEnergy(item: EnergyCollectible): void {
-        item.collect();
-        const data = item.itemData;
-
-        // Apply combo multiplier
-        const earnedPoints = data.points * this.combo;
-        this.score += earnedPoints;
-        this.cleanEnergyProgress = Math.min(100, this.cleanEnergyProgress + data.progress);
-
-        // Sound feedback
-        SoundFX.playCollect(this.combo);
-
-        // Increment combo up to max
-        if (this.combo < this.maxCombo) {
-            this.combo++;
-            if (this.combo >= 4) {
-                SoundFX.playComboMilestone();
-            }
-        }
-        EventBus.emit(GameEvents.COMBO_UPDATED, this.combo);
-
-        // Particle explosion
-        this.particleEmitter.explode(16, item.x, item.y);
-
-        // Dynamic floating popup with combo banner
-        const comboText = this.combo > 1 ? ` COMBO x${this.combo}!` : '';
-        this.showFloatingPopup(item.x, item.y, `+${earnedPoints} kWh${comboText}`, this.combo > 2 ? '#4ADE80' : '#FACC15');
-
-        // Notify HUD
-        EventBus.emit(GameEvents.SCORE_UPDATED, this.score);
-        EventBus.emit(GameEvents.PROGRESS_UPDATED, this.cleanEnergyProgress);
-
-        // Check Win
-        if (this.cleanEnergyProgress >= this.targetProgress) {
-            this.winGame();
-        }
-    }
-
-    private hitHazard(hazard: HazardObstacle): void {
-        hazard.hit();
-        const data = hazard.hazardData;
-
-        // Reset combo
-        this.resetCombo();
-
-        this.lives = Math.max(0, this.lives - data.damage);
-        this.cleanEnergyProgress = Math.max(0, this.cleanEnergyProgress - data.penalty);
-
-        // Sound feedback
-        SoundFX.playHazard();
-
-        // Hit-stop: momentary 45ms freeze frame for tactile impact punch
-        this.physics.world.pause();
-        this.time.delayedCall(45, () => {
-            if (this.isGameActive) this.physics.world.resume();
+        // Move Turbos
+        this.turbos.children.each((child) => {
+            const turbo = child as WindTurbo;
+            turbo.y += scrollSpeed;
+            if (turbo.y > height + 60) turbo.destroy();
+            return null;
         });
 
-        // Player animation & damage flash
-        this.player.takeDamage();
-        this.showFloatingPopup(hazard.x, hazard.y, `-${data.penalty}% ${data.label}!`, '#EF4444');
+        // Move Obstacles
+        this.obstacles.children.each((child) => {
+            const obs = child as TrackObstacle;
+            obs.y += scrollSpeed;
+            if (obs.y > height + 60) obs.destroy();
+            return null;
+        });
 
-        EventBus.emit(GameEvents.LIVES_UPDATED, this.lives);
-        EventBus.emit(GameEvents.PROGRESS_UPDATED, this.cleanEnergyProgress);
+        // Move Batteries
+        this.batteries.children.each((child) => {
+            const bat = child as Phaser.Physics.Arcade.Sprite;
+            bat.y += scrollSpeed;
+            if (bat.y > height + 60) bat.destroy();
+            return null;
+        });
 
-        if (this.lives <= 0) {
-            this.gameOver();
+        // Move Finish Line if spawned
+        if (this.finishLineObj) {
+            this.finishLineObj.y += scrollSpeed;
+            if (this.finishLineObj.y >= this.glider.y && this.isRaceActive) {
+                this.finishRace();
+            }
         }
     }
 
-    private resetCombo(): void {
-        if (this.combo > 1) {
-            this.combo = 1;
-            EventBus.emit(GameEvents.COMBO_UPDATED, this.combo);
+    private spawnTrackElements(): void {
+        if (!this.isRaceActive || this.hasSpawnedFinishLine) return;
+
+        const { width } = this.scale;
+        const laneMinX = 75;
+        const laneMaxX = width - 75;
+        const spawnX = Phaser.Math.Between(laneMinX, laneMaxX);
+
+        const rand = Math.random();
+
+        if (rand < 0.45) {
+            // 45% Wind Turbo Boost Pad
+            const turbo = new WindTurbo(this, spawnX, -40);
+            this.turbos.add(turbo);
+        } else if (rand < 0.80) {
+            // 35% Rock or Log Obstacle
+            const isRock = Math.random() < 0.6;
+            const obs = new TrackObstacle(this, spawnX, -40, isRock ? 'track_rock' : 'track_log');
+            this.obstacles.add(obs);
+        } else {
+            // 20% Clean Energy Battery pack
+            const battery = this.physics.add.sprite(spawnX, -40, 'battery').setScale(1.5).setDepth(6);
+            (battery.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+            if (battery.preFX) battery.preFX.addGlow(0x22C55E, 2, 0.5);
+            this.batteries.add(battery);
         }
     }
 
-    private showFloatingPopup(x: number, y: number, text: string, color: string): void {
-        const popup = this.add.text(x, y - 10, text, {
-            fontSize: '13px',
+    private spawnFinishLine(): void {
+        this.hasSpawnedFinishLine = true;
+        const { width } = this.scale;
+        this.finishLineObj = this.physics.add.sprite(width / 2, -50, 'finish_line')
+            .setScale(3.0, 1.5)
+            .setDepth(15);
+        (this.finishLineObj.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    }
+
+    private handleTurboCollect(
+        _gliderObj: Phaser.GameObjects.GameObject,
+        turboObj: Phaser.GameObjects.GameObject
+    ): void {
+        const turbo = turboObj as WindTurbo;
+        if (turbo.isCollected) return;
+
+        turbo.collect();
+        this.glider.applyTurboBoost();
+        this.cleanKwh += 25;
+        SoundFX.playWindTurbo();
+
+        this.showPopup(turbo.x, turbo.y, '¡TURBO EÓLICO +150 km/h!', '#00E5FF');
+        EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
+    }
+
+    private handleObstacleHit(
+        _gliderObj: Phaser.GameObjects.GameObject,
+        obstacleObj: Phaser.GameObjects.GameObject
+    ): void {
+        const obstacle = obstacleObj as TrackObstacle;
+        if (obstacle.isHit || this.glider.isSpinningOut) return;
+
+        obstacle.hit();
+        this.glider.triggerSpinOut();
+        SoundFX.playSpinOut();
+        this.cameras.main.shake(200, 0.018);
+
+        this.showPopup(this.glider.x, this.glider.y, '¡TROMPO! -40 km/h', '#EF4444');
+    }
+
+    private handleBatteryCollect(
+        _gliderObj: Phaser.GameObjects.GameObject,
+        batteryObj: Phaser.GameObjects.GameObject
+    ): void {
+        const bat = batteryObj as Phaser.Physics.Arcade.Sprite;
+        bat.destroy();
+
+        this.cleanKwh += 15;
+        SoundFX.playCollect(2);
+        this.showPopup(this.glider.x, this.glider.y - 20, '+15 kWh Batería', '#22C55E');
+        EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
+    }
+
+    private showPopup(x: number, y: number, text: string, color: string): void {
+        const popup = this.add.text(x, y, text, {
+            fontSize: '12px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',
             color: color
-        }).setOrigin(0.5).setDepth(20);
+        }).setOrigin(0.5).setDepth(25);
 
-        // Elastic pop animation
-        popup.setScale(0.6);
         this.tweens.add({
             targets: popup,
-            scaleX: 1.15,
-            scaleY: 1.15,
-            y: y - 40,
-            duration: 250,
-            ease: 'Back.easeOut',
-            onComplete: () => {
-                this.tweens.add({
-                    targets: popup,
-                    alpha: 0,
-                    y: y - 65,
-                    duration: 400,
-                    onComplete: () => popup.destroy()
-                });
-            }
+            y: y - 45,
+            alpha: 0,
+            duration: 500,
+            onComplete: () => popup.destroy()
         });
     }
 
-    private winGame(): void {
-        this.isGameActive = false;
+    private finishRace(): void {
+        if (!this.isRaceActive) return;
+        this.isRaceActive = false;
         window.__gameActive = false;
+
+        const totalTimeSeconds = ((this.time.now - this.raceStartTime) / 1000).toFixed(1);
         SoundFX.playWin();
-        this.scene.stop('HudScene');
-        this.cameras.main.fadeOut(350, 10, 14, 26);
-        this.time.delayedCall(350, () => {
-            this.scene.start('WinScene', { score: this.score, progress: this.cleanEnergyProgress });
-        });
-    }
 
-    private gameOver(): void {
-        this.isGameActive = false;
-        window.__gameActive = false;
-        SoundFX.playGameOver();
         this.scene.stop('HudScene');
-        this.cameras.main.fadeOut(350, 10, 14, 26);
-        this.time.delayedCall(350, () => {
-            this.scene.start('GameOverScene', { score: this.score, progress: this.cleanEnergyProgress });
+        this.cameras.main.fadeOut(400, 10, 14, 26);
+        this.time.delayedCall(400, () => {
+            this.scene.start('WinScene', {
+                time: totalTimeSeconds,
+                kwh: this.cleanKwh,
+                distance: this.targetDistance
+            });
         });
     }
 }

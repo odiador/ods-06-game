@@ -3,57 +3,52 @@ import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 
 interface HudInitData {
-    targetProgress: number;
-    initialLives: number;
+    targetDistance: number;
 }
 
 export class HudScene extends Scene {
-    private scoreText!: Phaser.GameObjects.Text;
-    private progressText!: Phaser.GameObjects.Text;
-    private progressBarGfx!: Phaser.GameObjects.Graphics;
-    private heartSprites: Phaser.GameObjects.Sprite[] = [];
-    private comboBadge!: Phaser.GameObjects.Container;
-    private comboText!: Phaser.GameObjects.Text;
+    private speedText!: Phaser.GameObjects.Text;
+    private distanceText!: Phaser.GameObjects.Text;
+    private energyText!: Phaser.GameObjects.Text;
+    private trackBarGfx!: Phaser.GameObjects.Graphics;
+    private racerDot!: Phaser.GameObjects.Graphics;
     private muteIcon!: Phaser.GameObjects.Sprite;
 
-    private targetProgress: number = 80;
-    private currentDisplayProgress: number = 0;
+    private targetDistance: number = 2030;
 
     constructor() {
         super('HudScene');
     }
 
     init(data: HudInitData): void {
-        this.targetProgress = data.targetProgress || 80;
-        this.heartSprites = [];
-        this.currentDisplayProgress = 0;
+        this.targetDistance = data.targetDistance || 2030;
     }
 
     create(): void {
         const { width } = this.scale;
 
-        // Top HUD Panel Background (Glassmorphic dark strip)
+        // Top HUD Panel (Glassmorphic dark dashboard)
         const panel = this.add.graphics();
-        panel.fillStyle(0x0F172A, 0.88);
-        panel.fillRoundedRect(10, 10, width - 20, 88, 8);
-        panel.lineStyle(1, 0x334155, 0.7);
-        panel.strokeRoundedRect(10, 10, width - 20, 88, 8);
+        panel.fillStyle(0x0F172A, 0.90);
+        panel.fillRoundedRect(10, 10, width - 20, 84, 8);
+        panel.lineStyle(1, 0x334155, 0.8);
+        panel.strokeRoundedRect(10, 10, width - 20, 84, 8);
 
-        // Score display (Top Left)
-        this.add.text(22, 18, 'ENERGÍA GENERADA', {
+        // Speedometer (Top Left)
+        this.add.text(22, 16, 'VELOCÍMETRO', {
             fontSize: '9px',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#94A3B8'
         });
 
-        this.scoreText = this.add.text(22, 30, '0 kWh', {
-            fontSize: '17px',
+        this.speedText = this.add.text(22, 28, '85 km/h', {
+            fontSize: '18px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',
-            color: '#FACC15'
+            color: '#00E5FF'
         });
 
-        // Interactive Audio Mute Button (Center Top)
+        // Audio Mute Icon (Center Top)
         const soundKey = SoundFX.getMuted() ? 'sound_off' : 'sound_on';
         this.muteIcon = this.add.sprite(width / 2, 32, soundKey)
             .setScale(1.3)
@@ -64,144 +59,90 @@ export class HudScene extends Scene {
             this.muteIcon.setTexture(muted ? 'sound_off' : 'sound_on');
         });
 
-        // Grid Stability (Lives) display (Top Right)
-        this.add.text(width - 22, 18, 'ESTABILIDAD', {
+        // Energy Harvested (Top Right)
+        this.add.text(width - 22, 16, 'ENERGÍA EÓLICA', {
             fontSize: '9px',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#94A3B8'
         }).setOrigin(1, 0);
 
-        for (let i = 0; i < 3; i++) {
-            const heart = this.add.sprite(width - 64 + i * 18, 38, 'heart_pixel').setScale(1.2);
-            this.heartSprites.push(heart);
-        }
+        this.energyText = this.add.text(width - 22, 28, '0 kWh', {
+            fontSize: '18px',
+            fontFamily: "'Courier New', Courier, monospace",
+            fontStyle: 'bold',
+            color: '#FACC15'
+        }).setOrigin(1, 0);
 
-        // Progress to 2030 (Bottom of HUD panel)
-        this.add.text(22, 58, 'MATRIZ RENOVABLE (META 80%):', {
+        // Track Distance & Linear Race Bar (Bottom of HUD)
+        this.distanceText = this.add.text(22, 54, `CARRERA META 2030: 0m / ${this.targetDistance}m`, {
             fontSize: '9px',
             fontFamily: "'Courier New', Courier, monospace",
-            color: '#94A3B8'
+            color: '#CBD5E1'
         });
 
-        this.progressText = this.add.text(width - 22, 58, '0%', {
-            fontSize: '11px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
-            color: '#4ADE80'
-        }).setOrigin(1, 0);
-
-        // Progress Bar Graphics
-        this.progressBarGfx = this.add.graphics();
-        this.renderProgressBar(0);
-
-        // ── Combo Badge (Floating under HUD) ──
-        this.comboBadge = this.add.container(width / 2, 115).setAlpha(0);
-
-        const badgeBg = this.add.graphics();
-        badgeBg.fillStyle(0x15803D, 0.95);
-        badgeBg.fillRoundedRect(-55, -12, 110, 24, 6);
-        badgeBg.lineStyle(1, 0x4ADE80, 0.9);
-        badgeBg.strokeRoundedRect(-55, -12, 110, 24, 6);
-
-        this.comboText = this.add.text(0, 0, 'COMBO x2', {
-            fontSize: '12px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
-            color: '#FFFFFF'
-        }).setOrigin(0.5);
-
-        this.comboBadge.add([badgeBg, this.comboText]);
+        this.trackBarGfx = this.add.graphics();
+        this.racerDot = this.add.graphics();
+        this.renderRaceTrack(0);
 
         // ── Event Listeners ──
+        EventBus.on(GameEvents.SPEED_UPDATED, this.updateSpeed, this);
+        EventBus.on(GameEvents.DISTANCE_UPDATED, this.updateDistance, this);
         EventBus.on(GameEvents.SCORE_UPDATED, this.updateScore, this);
-        EventBus.on(GameEvents.PROGRESS_UPDATED, this.updateProgress, this);
-        EventBus.on(GameEvents.LIVES_UPDATED, this.updateLives, this);
-        EventBus.on(GameEvents.COMBO_UPDATED, this.updateCombo, this);
 
         this.events.on('shutdown', () => {
+            EventBus.off(GameEvents.SPEED_UPDATED, this.updateSpeed, this);
+            EventBus.off(GameEvents.DISTANCE_UPDATED, this.updateDistance, this);
             EventBus.off(GameEvents.SCORE_UPDATED, this.updateScore, this);
-            EventBus.off(GameEvents.PROGRESS_UPDATED, this.updateProgress, this);
-            EventBus.off(GameEvents.LIVES_UPDATED, this.updateLives, this);
-            EventBus.off(GameEvents.COMBO_UPDATED, this.updateCombo, this);
         });
+    }
+
+    private updateSpeed(speed: number): void {
+        this.speedText.setText(`${speed} km/h`);
+        if (speed >= 130) {
+            this.speedText.setColor('#FACC15'); // Gold for Turbo
+        } else {
+            this.speedText.setColor('#00E5FF'); // Cyan for normal cruising
+        }
     }
 
     private updateScore(score: number): void {
-        this.scoreText.setText(`${score} kWh`);
+        this.energyText.setText(`${score} kWh`);
     }
 
-    private updateProgress(targetProgressVal: number): void {
-        this.progressText.setText(`${Math.round(targetProgressVal)}%`);
-
-        // Smooth tween the progress bar fill
-        this.tweens.add({
-            targets: this,
-            currentDisplayProgress: targetProgressVal,
-            duration: 300,
-            ease: 'Sine.easeOut',
-            onUpdate: () => {
-                this.renderProgressBar(this.currentDisplayProgress);
-            }
-        });
+    private updateDistance(data: { current: number; target: number; progress: number }): void {
+        this.distanceText.setText(`CARRERA META 2030: ${data.current}m / ${data.target}m`);
+        this.renderRaceTrack(data.progress);
     }
 
-    private updateCombo(combo: number): void {
-        if (combo > 1) {
-            this.comboText.setText(`COMBO x${combo}!`);
-            this.comboBadge.setAlpha(1);
-            this.tweens.add({
-                targets: this.comboBadge,
-                scaleX: 1.15,
-                scaleY: 1.15,
-                duration: 150,
-                yoyo: true,
-                ease: 'Quad.easeOut'
-            });
-        } else {
-            this.tweens.add({
-                targets: this.comboBadge,
-                alpha: 0,
-                duration: 200
-            });
-        }
-    }
-
-    private updateLives(lives: number): void {
-        for (let i = 0; i < this.heartSprites.length; i++) {
-            if (i < lives) {
-                this.heartSprites[i].setAlpha(1);
-                this.heartSprites[i].setTint(0xFFFFFF);
-            } else {
-                this.heartSprites[i].setAlpha(0.2);
-                this.heartSprites[i].setTint(0x64748B);
-            }
-        }
-    }
-
-    private renderProgressBar(progress: number): void {
+    private renderRaceTrack(progress: number): void {
         const { width } = this.scale;
         const barX = 22;
-        const barY = 74;
+        const barY = 70;
         const barWidth = width - 44;
-        const barHeight = 12;
+        const barHeight = 10;
 
-        this.progressBarGfx.clear();
+        this.trackBarGfx.clear();
+        this.racerDot.clear();
 
-        // Bar background
-        this.progressBarGfx.fillStyle(0x1E293B, 1);
-        this.progressBarGfx.fillRoundedRect(barX, barY, barWidth, barHeight, 3);
+        // Track background
+        this.trackBarGfx.fillStyle(0x1E293B, 1);
+        this.trackBarGfx.fillRoundedRect(barX, barY, barWidth, barHeight, 3);
 
-        // Fill
+        // Track progress fill (green gradient line)
         const clamped = Math.max(0, Math.min(100, progress));
-        const fillWidth = (clamped / 100) * barWidth;
-        const fillColor = clamped >= this.targetProgress ? 0x22C55E : 0xFACC15;
+        const fillW = (clamped / 100) * barWidth;
+        this.trackBarGfx.fillStyle(0x22C55E, 1);
+        this.trackBarGfx.fillRoundedRect(barX, barY, fillW, barHeight, 3);
 
-        this.progressBarGfx.fillStyle(fillColor, 1);
-        this.progressBarGfx.fillRoundedRect(barX, barY, fillWidth, barHeight, 3);
+        // Finish flag marker at 100%
+        this.trackBarGfx.fillStyle(0xFACC15, 1);
+        this.trackBarGfx.fillRect(barX + barWidth - 4, barY - 2, 4, barHeight + 4);
 
-        // Target 80% marker line
-        const targetMarkerX = barX + (this.targetProgress / 100) * barWidth;
-        this.progressBarGfx.lineStyle(2, 0xFFFFFF, 0.9);
-        this.progressBarGfx.lineBetween(targetMarkerX, barY - 2, targetMarkerX, barY + barHeight + 2);
+        // Player's racer icon position
+        const racerX = barX + fillW;
+        this.racerDot.fillStyle(0x00E5FF, 1);
+        this.racerDot.fillCircle(racerX, barY + barHeight / 2, 6);
+        this.racerDot.fillStyle(0xFFFFFF, 1);
+        this.racerDot.fillCircle(racerX, barY + barHeight / 2, 3);
     }
 }

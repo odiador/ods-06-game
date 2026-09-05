@@ -69,6 +69,14 @@ export class PreloaderScene extends Scene {
         this.load.image('substation_floor', 'assets/env/substation_floor.png');
         this.load.image('city_skyline', 'assets/env/city_skyline.png');
         this.load.image('clouds', 'assets/env/clouds.png');
+
+        // Colinas Eólicas Track Assets
+        this.load.image('wind_glider', 'assets/track/wind_glider.png');
+        this.load.image('wind_gust', 'assets/track/wind_gust.png');
+        this.load.image('track_rock', 'assets/track/track_rock.png');
+        this.load.image('track_log', 'assets/track/track_log.png');
+        this.load.image('finish_line', 'assets/track/finish_line.png');
+        this.load.image('grass_border', 'assets/track/grass_border.png');
     }
 
     create(): void {

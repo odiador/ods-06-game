@@ -486,15 +486,148 @@ function drawSoundOn(x, y) {
 }
 
 function drawSoundOff(x, y) {
-    // Speaker cone
     if (x >= 2 && x <= 4 && y >= 6 && y <= 10) return hexToRgba('#94A3B8');
     if (x >= 5 && x <= 8 && Math.abs(y - 8) <= (x - 4) * 1.2) return hexToRgba('#94A3B8');
-
-    // Red diagonal X
     if (Math.abs((x - 12) - (y - 8)) <= 1 && x >= 10 && x <= 14) return hexToRgba('#EF4444');
     if (Math.abs((x - 12) + (y - 8)) <= 1 && x >= 10 && x <= 14) return hexToRgba('#EF4444');
+    return TRANSPARENT;
+}
+
+// ── 17. WIND GLIDER (SLED) (32x32) ──
+function drawWindGlider(x, y) {
+    // Aerodynamic top-down racing sled
+    // Nose tip: (15, 3) to (16, 3)
+    const dx = Math.abs(x - 15.5);
+
+    // Streamlined hull triangle: y: 3..27
+    if (y >= 3 && y <= 27) {
+        const maxWidthAtY = (y - 3) * 0.48 + 1.2;
+        if (dx <= maxWidthAtY) {
+            // Outer hull border (metallic slate)
+            if (dx >= maxWidthAtY - 1.1) return hexToRgba('#0F172A');
+
+            // Lateral cyan energy runners / skis (dx > maxWidthAtY - 2.5)
+            if (dx >= maxWidthAtY - 2.5 && y >= 8) return hexToRgba('#00E5FF');
+
+            // Technician cockpit in the center: y: 11..19, dx <= 3.5
+            if (y >= 11 && y <= 19 && dx <= 3.5) {
+                // Yellow helmet top: y: 13..16, dx <= 2.2
+                if (y >= 13 && y <= 16 && dx <= 2.2) {
+                    if (y === 13) return hexToRgba('#FACC15'); // Helmet top
+                    if (y === 14 && dx <= 1.5) return hexToRgba('#00E5FF'); // Visor
+                    return hexToRgba('#EAB308');
+                }
+                // Cockpit windshield tint
+                return hexToRgba('#1E293B');
+            }
+
+            // High-vis ODS 7 Solar gold racing stripes
+            if (dx >= 3.2 && dx <= 4.8 && y >= 10 && y <= 24) return hexToRgba('#FACC15');
+
+            // Sleek white / light-cyan aerodynamic composite body
+            if (dx <= 1.2) return hexToRgba('#FFFFFF');
+            return hexToRgba('#E2E8F0');
+        }
+    }
+
+    // Rear twin thruster nozzles: y: 28..30, x around 12 and 19
+    if (y >= 28 && y <= 30) {
+        if ((x >= 11 && x <= 13) || (x >= 18 && x <= 20)) {
+            if (y === 30) return hexToRgba('#00E5FF'); // Cyan exhaust glow
+            return hexToRgba('#334155');
+        }
+    }
 
     return TRANSPARENT;
+}
+
+// ── 18. WIND GUST BOOST PAD (48x32) ──
+function drawWindGust(x, y) {
+    // 3 Forward-pointing glowing cyan chevrons (>>>)
+    // Chevron tips at x = 16, 28, 40, pointing downward / forward
+    const chevrons = [14, 26, 38];
+    for (const cx of chevrons) {
+        const distFromCenter = Math.abs(x - cx);
+        // V-shape: y increases as dx increases
+        const targetY = 16 - distFromCenter * 0.8;
+        if (Math.abs(y - targetY) <= 2.2 && distFromCenter <= 9) {
+            if (Math.abs(y - targetY) <= 1.0) return hexToRgba('#FFFFFF'); // White hot core
+            return hexToRgba('#00E5FF', 220); // Cyan energy aura
+        }
+    }
+
+    // Outer subtle aerodynamic wind streak trails
+    if ((x + y * 2) % 11 === 0 && y >= 4 && y <= 28) {
+        return hexToRgba('#38BDF8', 130);
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 19. TRACK ROCK OBSTACLE (32x32) ──
+function drawTrackRock(x, y) {
+    const dx = x - 15.5;
+    const dy = y - 16.5;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    const noise = Math.sin(x * 1.5) * 2 + Math.cos(y * 1.7) * 2;
+
+    if (r + noise > 12) return TRANSPARENT;
+
+    // Rock shadow on the ground
+    if (r + noise > 10.5) return hexToRgba('#0F172A');
+
+    // Mountain canyon granite shading with moss patch
+    if (x < 14 && y < 14 && (x + y) % 3 === 0) return hexToRgba('#65A30D'); // Green moss
+    if (x < 13 && y < 13) return hexToRgba('#94A3B8'); // Sunlight crest
+    if (x > y + 2) return hexToRgba('#475569'); // Shaded rock face
+    return hexToRgba('#64748B');
+}
+
+// ── 20. TRACK FALLEN LOG (48x24) ──
+function drawTrackLog(x, y) {
+    // Horizontal wooden log spanning x: 4..43, y: 6..18
+    if (x < 4 || x > 43 || y < 6 || y > 18) return TRANSPARENT;
+
+    // Outer bark border
+    if (x === 4 || x === 43 || y === 6 || y === 18) return hexToRgba('#1C1917');
+
+    // Log end rings (on left side x: 4..8)
+    if (x <= 8) {
+        if (y === 12 && x === 6) return hexToRgba('#D97706'); // Core ring
+        return hexToRgba('#B45309');
+    }
+
+    // Wood bark grain texture
+    if (y === 8 || y === 15) return hexToRgba('#451A03');
+    if ((x * 7 + y) % 13 === 0) return hexToRgba('#78350F');
+    return hexToRgba('#92400E');
+}
+
+// ── 21. FINISH LINE BANNER (128x32) ──
+function drawFinishLine(x, y) {
+    // Checkerboard pattern (ODS 7 Gold & Dark Slate)
+    const checkSize = 8;
+    const checkX = Math.floor(x / checkSize);
+    const checkY = Math.floor(y / checkSize);
+
+    // Top and bottom metallic rails
+    if (y <= 2 || y >= 29) return hexToRgba('#CBD5E1');
+    if (y === 3 || y === 28) return hexToRgba('#00E5FF'); // Glowing cyan border
+
+    // Chequered tiles
+    if ((checkX + checkY) % 2 === 0) {
+        return hexToRgba('#FACC15'); // ODS 7 Gold
+    }
+    return hexToRgba('#0F172A'); // Dark slate
+}
+
+// ── 22. CANYON GRASS TRACK BORDER (32x32) ──
+function drawGrassBorder(x, y) {
+    // Deep green mountain canyon grass with wind ripples
+    if ((x * 3 + y * 5) % 11 === 0) return hexToRgba('#4ADE80'); // Bright blade
+    if ((x + y) % 4 === 0) return hexToRgba('#16A34A');
+    if (x >= 28) return hexToRgba('#14532D'); // Shadow edge where track meets grass
+    return hexToRgba('#15803D');
 }
 
 // Ensure output directories exist
@@ -504,8 +637,9 @@ const hazardsDir = path.join(assetsDir, 'hazards');
 const playerDir = path.join(assetsDir, 'player');
 const uiDir = path.join(assetsDir, 'ui');
 const envDir = path.join(assetsDir, 'env');
+const trackDir = path.join(assetsDir, 'track');
 
-[assetsDir, itemsDir, hazardsDir, playerDir, uiDir, envDir].forEach(dir => {
+[assetsDir, itemsDir, hazardsDir, playerDir, uiDir, envDir, trackDir].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -533,6 +667,14 @@ const assetsToGenerate = [
     { file: path.join(envDir, 'substation_floor.png'), size: 32, fn: drawSubstationFloor },
     { file: path.join(envDir, 'city_skyline.png'), width: 128, height: 48, fn: drawCitySkyline },
     { file: path.join(envDir, 'clouds.png'), width: 96, height: 24, fn: drawCloud },
+
+    // ── Colinas Eólicas Sled Racing Assets ──
+    { file: path.join(trackDir, 'wind_glider.png'), size: 32, fn: drawWindGlider },
+    { file: path.join(trackDir, 'wind_gust.png'), width: 48, height: 32, fn: drawWindGust },
+    { file: path.join(trackDir, 'track_rock.png'), size: 32, fn: drawTrackRock },
+    { file: path.join(trackDir, 'track_log.png'), width: 48, height: 24, fn: drawTrackLog },
+    { file: path.join(trackDir, 'finish_line.png'), width: 128, height: 32, fn: drawFinishLine },
+    { file: path.join(trackDir, 'grass_border.png'), size: 32, fn: drawGrassBorder },
 ];
 
 for (const item of assetsToGenerate) {
@@ -544,3 +686,4 @@ for (const item of assetsToGenerate) {
 }
 
 console.log('All pixel art assets generated successfully!');
+

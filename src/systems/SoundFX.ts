@@ -185,6 +185,58 @@ class SoundFXSystem {
     }
 
     /**
+     * High speed wind boost whoosh sound
+     */
+    public playWindTurbo(): void {
+        if (this.isMuted) return;
+        const ctx = this.getContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(950, now + 0.35);
+
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.35);
+    }
+
+    /**
+     * Obstacle collision / spin-out skid sound
+     */
+    public playSpinOut(): void {
+        if (this.isMuted) return;
+        const ctx = this.getContext();
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(450, now);
+        osc.frequency.linearRampToValueAtTime(120, now + 0.3);
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.32);
+    }
+
+    /**
      * Game over blackout sound: winding pitch drop
      */
     public playGameOver(): void {
