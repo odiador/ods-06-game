@@ -1,16 +1,20 @@
 {
-  "name": "template-vite",
-  "version": "0.0.0",
+  "name": "ods-07-game",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
-    "vite": "^5.1.6"
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
   },
   "dependencies": {
-    "phaser": "^3.80.1"
+    "phaser": "^3.90.0"
   }
 }
