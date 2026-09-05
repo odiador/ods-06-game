@@ -8,6 +8,8 @@ export const GameEvents = {
     LIVES_UPDATED: 'lives-updated',
     ITEM_COLLECTED: 'item-collected',
     HAZARD_HIT: 'hazard-hit',
+    COMBO_UPDATED: 'combo-updated',
+    MUTE_TOGGLED: 'mute-toggled',
     GAME_OVER: 'game-over',
     GAME_WIN: 'game-win'
 } as const;

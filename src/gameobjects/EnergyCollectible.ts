@@ -5,6 +5,7 @@ export class EnergyCollectible extends Physics.Arcade.Sprite {
     public itemData: EnergyItemData;
     public isCollected: boolean = false;
     private floatTween?: Phaser.Tweens.Tween;
+    public isMagnetized: boolean = false;
 
     constructor(scene: Scene, x: number, y: number, data: EnergyItemData) {
         super(scene, x, y, data.key);
@@ -35,19 +36,42 @@ export class EnergyCollectible extends Physics.Arcade.Sprite {
         });
     }
 
+    /**
+     * Magnetism pull: pulls the item towards player when within range
+     */
+    public pullTowards(targetX: number, targetY: number, strength: number = 260): void {
+        if (this.isCollected) return;
+
+        if (!this.isMagnetized) {
+            this.isMagnetized = true;
+            if (this.floatTween) {
+                this.floatTween.stop();
+            }
+        }
+
+        const angle = Phaser.Math.Angle.Between(this.x, this.y, targetX, targetY);
+        const vx = Math.cos(angle) * strength;
+        const vy = Math.sin(angle) * strength + 80; // Add downward momentum
+
+        this.setVelocity(vx, vy);
+
+        // Subtle stretch towards player
+        this.setRotation(angle - Math.PI / 2);
+    }
+
     public collect(): void {
         this.isCollected = true;
         if (this.floatTween) {
             this.floatTween.stop();
         }
 
-        // Pulse scale up and fade out
+        // Pulse scale up, glow flare, and fade out
         this.scene.tweens.add({
             targets: this,
-            scaleX: 2.5,
-            scaleY: 2.5,
+            scaleX: 2.8,
+            scaleY: 2.8,
             alpha: 0,
-            y: this.y - 30,
+            y: this.y - 25,
             duration: 200,
             ease: 'Back.easeOut',
             onComplete: () => {

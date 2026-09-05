@@ -60,7 +60,15 @@ export class PreloaderScene extends Scene {
 
         // UI & VFX
         this.load.image('spark', 'assets/ui/spark.png');
+        this.load.image('dust', 'assets/ui/dust.png');
         this.load.image('heart_pixel', 'assets/ui/heart_pixel.png');
+        this.load.image('sound_on', 'assets/ui/sound_on.png');
+        this.load.image('sound_off', 'assets/ui/sound_off.png');
+
+        // Environment & Parallax
+        this.load.image('substation_floor', 'assets/env/substation_floor.png');
+        this.load.image('city_skyline', 'assets/env/city_skyline.png');
+        this.load.image('clouds', 'assets/env/clouds.png');
     }
 
     create(): void {

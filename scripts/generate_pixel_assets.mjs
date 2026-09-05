@@ -362,14 +362,150 @@ function drawHeart(x, y) {
     return TRANSPARENT;
 }
 
+// ── 12. SUBSTATION FLOOR TILE (32x32) ──
+function drawSubstationFloor(x, y) {
+    // Top border with glowing energy conduit line (y: 0..3)
+    if (y === 0) return hexToRgba('#64748B'); // Metal lip
+    if (y === 1 || y === 2) {
+        // Glowing cyan energy line
+        if ((x + Math.floor(y)) % 8 < 5) return hexToRgba('#00E5FF');
+        return hexToRgba('#0284C7');
+    }
+    if (y === 3) return hexToRgba('#334155');
+
+    // Hazard yellow/black diagonal stripes (y: 4..8)
+    if (y >= 4 && y <= 8) {
+        if ((x + y) % 10 < 5) return hexToRgba('#FACC15'); // Warning yellow
+        return hexToRgba('#0F172A'); // Industrial black
+    }
+
+    // Metal grid plate with rivets (y: 9..31)
+    if (y === 9 || y === 31 || x === 0 || x === 31) return hexToRgba('#1E293B'); // Plate seam
+    // Rivets at corners
+    if ((x === 3 || x === 28) && (y === 12 || y === 28)) return hexToRgba('#94A3B8');
+
+    // Steel mesh texture
+    if ((x + y) % 4 === 0) return hexToRgba('#334155');
+    return hexToRgba('#1E293B');
+}
+
+// ── 13. ECO CITY SKYLINE SILHOUETTE (128x48) ──
+function drawCitySkyline(x, y) {
+    // Sky is transparent
+    // Buildings definitions (x ranges, heights)
+    const buildings = [
+        { x1: 0, x2: 18, h: 32 },
+        { x1: 20, x2: 36, h: 42 },
+        { x1: 38, x2: 52, h: 26 },
+        { x1: 54, x2: 74, h: 46 }, // Tall central green tower
+        { x1: 76, x2: 92, h: 36 },
+        { x1: 94, x2: 110, h: 40 },
+        { x1: 112, x2: 127, h: 28 }
+    ];
+
+    for (const b of buildings) {
+        if (x >= b.x1 && x <= b.x2) {
+            const topY = 48 - b.h;
+            if (y >= topY) {
+                // Antenna / light beacon on top of tall tower
+                if (b.h >= 42 && x === Math.floor((b.x1 + b.x2) / 2)) {
+                    if (y === topY - 4 || y === topY - 3) return hexToRgba('#EF4444'); // Red beacon
+                }
+
+                // Solar roof panel highlight
+                if (y === topY) return hexToRgba('#38BDF8');
+
+                // Lit windows inside buildings (green & yellow energy lights)
+                const winX = (x - b.x1) % 4;
+                const winY = (y - topY) % 6;
+                if (winX === 2 && winY === 3 && y > topY + 4 && y < 44) {
+                    if ((x * 3 + y * 7) % 5 === 0) return hexToRgba('#4ADE80'); // Green LED window
+                    if ((x * 5 + y * 3) % 4 === 0) return hexToRgba('#FEF08A'); // Warm yellow window
+                    return hexToRgba('#0369A1'); // Blue digital window
+                }
+
+                // Building silhouette body
+                if (x === b.x1 || x === b.x2) return hexToRgba('#0F172A');
+                return hexToRgba('#1E293B');
+            }
+        }
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 14. DISTANT CLOUD (96x24) ──
+function drawCloud(x, y) {
+    const centers = [
+        { cx: 24, cy: 15, rx: 16, ry: 7 },
+        { cx: 48, cy: 12, rx: 22, ry: 9 },
+        { cx: 72, cy: 15, rx: 18, ry: 7 }
+    ];
+
+    let inside = false;
+    for (const c of centers) {
+        const dx = (x - c.cx) / c.rx;
+        const dy = (y - c.cy) / c.ry;
+        if (dx * dx + dy * dy <= 1) {
+            inside = true;
+            break;
+        }
+    }
+
+    if (!inside) return TRANSPARENT;
+
+    // Semi-transparent night cloud with subtle moonlight edge
+    if (y < 8) return hexToRgba('#64748B', 140);
+    return hexToRgba('#334155', 100);
+}
+
+// ── 15. DUST PARTICLE (8x8) ──
+function drawDust(x, y) {
+    const dx = x - 3.5;
+    const dy = y - 3.5;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d <= 1.5) return hexToRgba('#E2E8F0', 200);
+    if (d <= 3.2) return hexToRgba('#94A3B8', 120);
+    return TRANSPARENT;
+}
+
+// ── 16. SOUND ICONS (16x16) ──
+function drawSoundOn(x, y) {
+    // Speaker cone: x: 2..8, y: 4..12
+    if (x >= 2 && x <= 4 && y >= 6 && y <= 10) return hexToRgba('#FACC15');
+    if (x >= 5 && x <= 8 && Math.abs(y - 8) <= (x - 4) * 1.2) return hexToRgba('#FACC15');
+
+    // Sound waves on the right: (x: 10..14)
+    const dy = Math.abs(y - 8);
+    // Wave 1
+    if (x === 11 && dy <= 3) return hexToRgba('#4ADE80');
+    // Wave 2
+    if (x === 14 && dy <= 5 && dy >= 2) return hexToRgba('#4ADE80');
+
+    return TRANSPARENT;
+}
+
+function drawSoundOff(x, y) {
+    // Speaker cone
+    if (x >= 2 && x <= 4 && y >= 6 && y <= 10) return hexToRgba('#94A3B8');
+    if (x >= 5 && x <= 8 && Math.abs(y - 8) <= (x - 4) * 1.2) return hexToRgba('#94A3B8');
+
+    // Red diagonal X
+    if (Math.abs((x - 12) - (y - 8)) <= 1 && x >= 10 && x <= 14) return hexToRgba('#EF4444');
+    if (Math.abs((x - 12) + (y - 8)) <= 1 && x >= 10 && x <= 14) return hexToRgba('#EF4444');
+
+    return TRANSPARENT;
+}
+
 // Ensure output directories exist
 const assetsDir = path.resolve('public/assets');
 const itemsDir = path.join(assetsDir, 'items');
 const hazardsDir = path.join(assetsDir, 'hazards');
 const playerDir = path.join(assetsDir, 'player');
 const uiDir = path.join(assetsDir, 'ui');
+const envDir = path.join(assetsDir, 'env');
 
-[assetsDir, itemsDir, hazardsDir, playerDir, uiDir].forEach(dir => {
+[assetsDir, itemsDir, hazardsDir, playerDir, uiDir, envDir].forEach(dir => {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -389,13 +525,22 @@ const assetsToGenerate = [
     { file: path.join(playerDir, 'player_run.png'), size: 32, fn: (x, y) => drawPlayer(x, y, 1) },
 
     { file: path.join(uiDir, 'spark.png'), size: 8, fn: drawSpark },
+    { file: path.join(uiDir, 'dust.png'), size: 8, fn: drawDust },
     { file: path.join(uiDir, 'heart_pixel.png'), size: 16, fn: drawHeart },
+    { file: path.join(uiDir, 'sound_on.png'), size: 16, fn: drawSoundOn },
+    { file: path.join(uiDir, 'sound_off.png'), size: 16, fn: drawSoundOff },
+
+    { file: path.join(envDir, 'substation_floor.png'), size: 32, fn: drawSubstationFloor },
+    { file: path.join(envDir, 'city_skyline.png'), width: 128, height: 48, fn: drawCitySkyline },
+    { file: path.join(envDir, 'clouds.png'), width: 96, height: 24, fn: drawCloud },
 ];
 
-for (const { file, size, fn } of assetsToGenerate) {
-    const pngBuf = createPNG(size, size, fn);
-    fs.writeFileSync(file, pngBuf);
-    console.log(`Generated: ${path.relative(process.cwd(), file)} (${pngBuf.length} bytes)`);
+for (const item of assetsToGenerate) {
+    const w = item.width || item.size;
+    const h = item.height || item.size;
+    const pngBuf = createPNG(w, h, item.fn);
+    fs.writeFileSync(item.file, pngBuf);
+    console.log(`Generated: ${path.relative(process.cwd(), item.file)} (${pngBuf.length} bytes)`);
 }
 
 console.log('All pixel art assets generated successfully!');

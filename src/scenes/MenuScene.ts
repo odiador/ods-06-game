@@ -8,25 +8,36 @@ export class MenuScene extends Scene {
     create(): void {
         const { width, height } = this.scale;
 
-        // ── 1. Smart Grid Background ──
+        // ── 1. Smart Grid & Skyline Background ──
         const bg = this.add.graphics();
-        bg.fillStyle(0x0A0E1A, 1);
+        bg.fillGradientStyle(0x050811, 0x050811, 0x0B132B, 0x0E1A38, 1);
         bg.fillRect(0, 0, width, height);
+
+        // Distant clouds
+        this.add.tileSprite(width / 2, 200, width, 48, 'clouds').setAlpha(0.4);
+
+        // City skyline at the bottom
+        this.add.tileSprite(width / 2, height - 80, width, 96, 'city_skyline')
+            .setTileScale(2, 2)
+            .setAlpha(0.75);
+
+        // Substation floor at very bottom
+        this.add.tileSprite(width / 2, height - 16, width, 32, 'substation_floor');
 
         // Grid lines simulating a smart digital power grid
         const gridGfx = this.add.graphics();
-        gridGfx.lineStyle(1, 0x1E293B, 0.45);
+        gridGfx.lineStyle(1, 0x1E293B, 0.35);
         for (let x = 0; x <= width; x += 30) {
-            gridGfx.lineBetween(x, 0, x, height);
+            gridGfx.lineBetween(x, 0, x, height - 32);
         }
-        for (let y = 0; y <= height; y += 30) {
+        for (let y = 0; y <= height - 32; y += 30) {
             gridGfx.lineBetween(0, y, width, y);
         }
 
         // Energy circuit nodes in background
         for (let i = 0; i < 8; i++) {
             const nodeX = Phaser.Math.Between(40, width - 40);
-            const nodeY = Phaser.Math.Between(60, height - 60);
+            const nodeY = Phaser.Math.Between(60, height - 120);
             const nodeDot = this.add.circle(nodeX, nodeY, 3, 0xFACC15, 0.35);
             this.tweens.add({
                 targets: nodeDot,
