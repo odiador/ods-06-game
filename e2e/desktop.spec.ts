@@ -46,7 +46,7 @@ test.describe('Desktop PC Compatibility & Performance Suite', () => {
         const box = await canvas.boundingBox();
         expect(box).not.toBeNull();
         if (box) {
-            await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.67);
+            await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.63);
         }
 
         // Wait for MainScene and camera fade-in to fully complete

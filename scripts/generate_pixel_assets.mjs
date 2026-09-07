@@ -623,11 +623,107 @@ function drawFinishLine(x, y) {
 
 // ── 22. CANYON GRASS TRACK BORDER (32x32) ──
 function drawGrassBorder(x, y) {
-    // Deep green mountain canyon grass with wind ripples
-    if ((x * 3 + y * 5) % 11 === 0) return hexToRgba('#4ADE80'); // Bright blade
-    if ((x + y) % 4 === 0) return hexToRgba('#16A34A');
-    if (x >= 28) return hexToRgba('#14532D'); // Shadow edge where track meets grass
-    return hexToRgba('#15803D');
+    // Smooth deep emerald/moss canyon border - soft and low contrast
+    // Outer cliff (x: 0..8) slightly deeper
+    let base = '#0E3328';
+    if (x <= 6) base = '#0B2920';
+    else if (x >= 26) {
+        // Soft blend transition into track
+        const t = (x - 26) / 5;
+        return t > 0.6 ? hexToRgba('#0A1C18') : hexToRgba('#0C241E');
+    }
+
+    // Gentle organic moss variation (low contrast)
+    const noise = (x * 7 + y * 13) % 17;
+    if (noise === 0) return hexToRgba('#144537');
+    if (noise === 1) return hexToRgba('#103A2E');
+    if ((x + y * 2) % 11 === 0) return hexToRgba('#174E3E');
+
+    return hexToRgba(base);
+}
+
+// ── 23. CANYON RACING TRACK (64x64) ──
+function drawCanyonTrack(x, y) {
+    // Ultra-smooth, low-contrast aerodynamic canyon chute
+    // Base: dark slate-emerald
+    let r = 10, g = 27, b = 24;
+
+    // Subtle organic soil/rock variation (±1..2 intensity, zero strobe)
+    const grain = ((x * 11 + y * 17) ^ (x * 3)) % 7;
+    if (grain === 0) { r += 1; g += 2; b += 2; }
+    else if (grain === 1) { r -= 1; g -= 1; b -= 1; }
+
+    // Gentle vertical wind laminar flow streaks (aligned with motion)
+    const streakCol = x % 16;
+    if (streakCol === 4 || streakCol === 12) {
+        // Soft aerodynamic streamline
+        const streamWave = (y + x * 2) % 32;
+        if (streamWave < 18) {
+            r += 2; g += 6; b += 6; // Soft mint/cyan tint
+        }
+    }
+
+    // Faint central race guide line (dashed at center x: 31..32)
+    if ((x === 31 || x === 32) && (y % 16 < 8)) {
+        r += 5; g += 14; b += 12; // Faint soft teal dashed guide
+    }
+
+    return [r, g, b, 255];
+}
+
+// ── 24. WIND TURBINE TOWER (32x32 stationary) ──
+function drawTurbineTower(x, y) {
+    // Upright aerodynamic mast and nacelle hub (does not rotate)
+    // Foundation base: y: 26..31, x: 12..19
+    if (y >= 26 && y <= 31 && x >= 12 && x <= 19) {
+        if (y === 26 || x === 12 || x === 19) return hexToRgba('#475569');
+        return hexToRgba('#334155');
+    }
+
+    // Tapered tower shaft: y: 8..26, x: 14..17
+    if (y >= 8 && y < 26) {
+        if (x === 14 || x === 17) return hexToRgba('#94A3B8'); // Shaded edge
+        if (x === 15 || x === 16) return hexToRgba('#E2E8F0'); // White aerodynamic pylon
+    }
+
+    // Nacelle pod & hub center: y: 4..8, x: 13..18
+    if (y >= 4 && y <= 8 && x >= 13 && x <= 18) {
+        if (x === 15 || x === 16) return hexToRgba('#0284C7'); // Cyan hub indicator
+        return hexToRgba('#F8FAFC');
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 25. WIND TURBINE ROTATING BLADES (32x32) ──
+function drawTurbineBlades(x, y) {
+    // Hub center at (15.5, 15.5)
+    const cx = 15.5;
+    const cy = 15.5;
+    const dx = x - cx;
+    const dy = y - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // Central spinner hub cap
+    if (dist <= 2.2) return hexToRgba('#00E5FF'); // Glowing cyan hub
+    if (dist <= 3.2) return hexToRgba('#F8FAFC');
+
+    // Blade 1: Upward
+    if (dy < -2 && dy >= -14 && Math.abs(dx) <= (1.2 - (-dy) * 0.05)) {
+        return dx < 0 ? hexToRgba('#F8FAFC') : hexToRgba('#E2E8F0');
+    }
+
+    // Blade 2: Bottom-Right (~120 deg)
+    if (dy > 1 && dx > 1 && dist <= 14 && Math.abs(dy - dx * 0.58) <= 1.2) {
+        return hexToRgba('#E2E8F0');
+    }
+
+    // Blade 3: Bottom-Left (~240 deg)
+    if (dy > 1 && dx < -1 && dist <= 14 && Math.abs(dy - (-dx) * 0.58) <= 1.2) {
+        return hexToRgba('#CBD5E1');
+    }
+
+    return TRANSPARENT;
 }
 
 // Ensure output directories exist
@@ -675,6 +771,9 @@ const assetsToGenerate = [
     { file: path.join(trackDir, 'track_log.png'), width: 48, height: 24, fn: drawTrackLog },
     { file: path.join(trackDir, 'finish_line.png'), width: 128, height: 32, fn: drawFinishLine },
     { file: path.join(trackDir, 'grass_border.png'), size: 32, fn: drawGrassBorder },
+    { file: path.join(trackDir, 'canyon_track.png'), size: 64, fn: drawCanyonTrack },
+    { file: path.join(trackDir, 'turbine_tower.png'), size: 32, fn: drawTurbineTower },
+    { file: path.join(trackDir, 'turbine_blades.png'), size: 32, fn: drawTurbineBlades },
 ];
 
 for (const item of assetsToGenerate) {

@@ -1,10 +1,10 @@
 import { Physics, Scene } from 'phaser';
 
 export class WindGlider extends Physics.Arcade.Sprite {
-    public speed: number = 85; // km/h base speed
-    public maxNormalSpeed: number = 95;
-    public maxTurboSpeed: number = 150;
-    public minSpeed: number = 35;
+    public speed: number = 45; // Lower, gentler initial speed (km/h)
+    public maxNormalSpeed: number = 115; // Higher top cruising speed
+    public maxTurboSpeed: number = 170; // High speed turbo peak
+    public minSpeed: number = 28; // Speed floor after spin-out
     public isSpinningOut: boolean = false;
     public isBoosting: boolean = false;
 
@@ -57,22 +57,26 @@ export class WindGlider extends Physics.Arcade.Sprite {
         super.preUpdate(time, delta);
         this.updateShadow();
 
-        // Natural speed recovery after spin-out or turbo fade
+        const dt = delta / 1000;
+
+        // Natural progressive acceleration and turbo decay
         if (!this.isSpinningOut) {
             if (this.isBoosting) {
-                // Turbo gradually settles down
-                this.speed = Math.max(this.maxNormalSpeed, this.speed - 0.15);
-                if (this.speed <= this.maxNormalSpeed + 2) {
+                // Turbo gradually settles down smoothly back to cruising speed
+                this.speed = Math.max(this.maxNormalSpeed, this.speed - 16 * dt);
+                if (this.speed <= this.maxNormalSpeed + 1) {
                     this.isBoosting = false;
                 }
             } else if (this.speed < this.maxNormalSpeed) {
-                // Accelerate back up to cruising speed
-                this.speed = Math.min(this.maxNormalSpeed, this.speed + 0.35);
+                // Gentle, progressive acceleration (+5.5 km/h per second)
+                // Builds speed steadily without instant snapping
+                const accelRate = 5.5;
+                this.speed = Math.min(this.maxNormalSpeed, this.speed + accelRate * dt);
             }
         }
 
-        // Emit speed trail
-        if (this.speed > 80 && Math.random() < 0.4) {
+        // Emit speed trail when driving fast
+        if (this.speed > 70 && Math.random() < 0.45) {
             this.trailEmitter.explode(1, this.x - 6, this.y + 16);
             this.trailEmitter.explode(1, this.x + 6, this.y + 16);
         }

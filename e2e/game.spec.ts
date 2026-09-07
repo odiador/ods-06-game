@@ -54,9 +54,9 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Click the Start button (around 66% down the canvas)
+            // Click the Start button (around 63% down the canvas, btnY=530 / 840)
             const clickX = box.x + box.width / 2;
-            const clickY = box.y + box.height * 0.67;
+            const clickY = box.y + box.height * 0.63;
             await page.mouse.click(clickX, clickY);
         }
 

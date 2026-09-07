@@ -77,6 +77,9 @@ export class PreloaderScene extends Scene {
         this.load.image('track_log', 'assets/track/track_log.png');
         this.load.image('finish_line', 'assets/track/finish_line.png');
         this.load.image('grass_border', 'assets/track/grass_border.png');
+        this.load.image('canyon_track', 'assets/track/canyon_track.png');
+        this.load.image('turbine_tower', 'assets/track/turbine_tower.png');
+        this.load.image('turbine_blades', 'assets/track/turbine_blades.png');
     }
 
     create(): void {

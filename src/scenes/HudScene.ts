@@ -41,7 +41,7 @@ export class HudScene extends Scene {
             color: '#94A3B8'
         });
 
-        this.speedText = this.add.text(22, 28, '85 km/h', {
+        this.speedText = this.add.text(22, 28, '45 km/h', {
             fontSize: '18px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',

@@ -5,6 +5,11 @@ import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 
+interface RoadsideTurbine {
+    tower: Phaser.GameObjects.Sprite;
+    blades: Phaser.GameObjects.Sprite;
+}
+
 export class MainScene extends Scene {
     private glider!: WindGlider;
     private cursors!: Types.Input.Keyboard.CursorKeys;
@@ -15,8 +20,7 @@ export class MainScene extends Scene {
     private rightGrassTile!: Phaser.GameObjects.TileSprite;
 
     // Wind turbines along the canyon sides
-    private leftTurbines: Phaser.GameObjects.Sprite[] = [];
-    private rightTurbines: Phaser.GameObjects.Sprite[] = [];
+    private turbines: RoadsideTurbine[] = [];
 
     // Groups
     private turbos!: Phaser.Physics.Arcade.Group;
@@ -42,8 +46,7 @@ export class MainScene extends Scene {
         this.isRaceActive = true;
         this.hasSpawnedFinishLine = false;
         window.__gameActive = true;
-        this.leftTurbines = [];
-        this.rightTurbines = [];
+        this.turbines = [];
     }
 
     create(): void {
@@ -54,19 +57,27 @@ export class MainScene extends Scene {
         // ── 1. Track & Canyon Borders ──
         // Canyon grass borders (left: 0..40, right: 380..420)
         this.leftGrassTile = this.add.tileSprite(20, height / 2, 40, height, 'grass_border').setDepth(1);
-        this.rightGrassTile = this.add.tileSprite(width - 20, height / 2, 40, height, 'grass_border').setDepth(1);
+        this.rightGrassTile = this.add.tileSprite(width - 20, height / 2, 40, height, 'grass_border').setDepth(1).setFlipX(true);
 
-        // Center gravel/dirt aerodynamic racing lane
-        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, 'substation_floor')
-            .setDepth(2)
-            .setAlpha(0.92);
+        // Center smooth aerodynamic canyon racing chute
+        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, 'canyon_track')
+            .setDepth(2);
 
-        // Rotating wind turbines along canyon ridges
+        // Rotating wind turbines along canyon ridges (stationary mast + spinning blades)
         for (let i = 0; i < 4; i++) {
-            const leftTurb = this.add.sprite(20, 150 + i * 220, 'wind').setScale(1.5).setDepth(3);
-            const rightTurb = this.add.sprite(width - 20, 80 + i * 220, 'wind').setScale(1.5).setDepth(3);
-            this.leftTurbines.push(leftTurb);
-            this.rightTurbines.push(rightTurb);
+            const leftY = 120 + i * 220;
+            const rightY = 40 + i * 220;
+
+            const leftTower = this.add.sprite(20, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
+            const leftBlades = this.add.sprite(20, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+
+            const rightTower = this.add.sprite(width - 20, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
+            const rightBlades = this.add.sprite(width - 20, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+
+            this.turbines.push(
+                { tower: leftTower, blades: leftBlades },
+                { tower: rightTower, blades: rightBlades }
+            );
         }
 
         // ── 2. Glider (Sled) ──
@@ -131,19 +142,21 @@ export class MainScene extends Scene {
         const metersThisFrame = metersPerSecond * (delta / 1000);
         this.distanceTraveled = Math.min(this.targetDistance, this.distanceTraveled + metersThisFrame);
 
-        // Scroll track and grass tiles proportionally to speed
-        const scrollSpeed = this.glider.speed * (delta / 1000) * 12;
+        // Scroll track and grass tiles smoothly (calibrated speed, zero strobe)
+        const scrollSpeed = this.glider.speed * (delta / 1000) * 8.5;
         this.trackTile.tilePositionY -= scrollSpeed;
         this.leftGrassTile.tilePositionY -= scrollSpeed;
         this.rightGrassTile.tilePositionY -= scrollSpeed;
 
-        // Move roadside turbines
+        // Move roadside turbines (tower stays vertical, blades spin on nacelle hub)
         const { height } = this.scale;
-        [...this.leftTurbines, ...this.rightTurbines].forEach((t) => {
-            t.y += scrollSpeed * 0.8;
-            t.angle += 3; // Spin blades
-            if (t.y > height + 50) {
-                t.y = -50;
+        this.turbines.forEach(({ tower, blades }) => {
+            tower.y += scrollSpeed * 0.75;
+            blades.y = tower.y - 14;
+            blades.angle += 3.5;
+            if (tower.y > height + 60) {
+                tower.y = -60;
+                blades.y = tower.y - 14;
             }
         });
 
