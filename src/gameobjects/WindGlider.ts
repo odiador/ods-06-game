@@ -12,8 +12,8 @@ export class WindGlider extends Physics.Arcade.Sprite {
     private trailEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
     private shadowGfx!: Phaser.GameObjects.Graphics;
 
-    constructor(scene: Scene, x: number, y: number) {
-        super(scene, x, y, 'wind_glider');
+    constructor(scene: Scene, x: number, y: number, textureKey: string = 'wind_glider', glowColor: number = 0x00E5FF) {
+        super(scene, x, y, textureKey);
 
         // Dynamic sled shadow
         this.shadowGfx = scene.add.graphics().setDepth(8);
@@ -33,7 +33,7 @@ export class WindGlider extends Physics.Arcade.Sprite {
 
         // Subtle glow around aerodynamic hull
         if (this.preFX) {
-            this.preFX.addGlow(0x00E5FF, 2, 0.4, false, 0.1, 8);
+            this.preFX.addGlow(glowColor, 2, 0.4, false, 0.1, 8);
         }
 
         // Speed trail particle emitter (twin trails from rear thrusters)

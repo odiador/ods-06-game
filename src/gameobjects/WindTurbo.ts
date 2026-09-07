@@ -3,8 +3,8 @@ import { Physics, Scene } from 'phaser';
 export class WindTurbo extends Physics.Arcade.Sprite {
     public isCollected: boolean = false;
 
-    constructor(scene: Scene, x: number, y: number) {
-        super(scene, x, y, 'wind_gust');
+    constructor(scene: Scene, x: number, y: number, textureKey: string = 'wind_gust', glowColor: number = 0x00E5FF) {
+        super(scene, x, y, textureKey);
 
         scene.add.existing(this);
         scene.physics.add.existing(this);
@@ -17,9 +17,9 @@ export class WindTurbo extends Physics.Arcade.Sprite {
         body.setSize(44, 28);
         body.setOffset(2, 2);
 
-        // Neon cyan glow
+        // Neon energy glow
         if (this.preFX) {
-            this.preFX.addGlow(0x00E5FF, 3, 0.6, false, 0.1, 10);
+            this.preFX.addGlow(glowColor, 3, 0.6, false, 0.1, 10);
         }
     }
 

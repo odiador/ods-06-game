@@ -1,15 +1,18 @@
 import { Scene } from 'phaser';
+import { BIOMES, BiomeConfig, BiomeMode } from '../types/game';
 
 interface WinSceneData {
     time: string;
     kwh: number;
     distance: number;
+    biome?: BiomeMode;
 }
 
 export class WinScene extends Scene {
     private finalTime: string = '0.0';
     private finalKwh: number = 0;
     private finalCo2: number = 0;
+    private biome: BiomeConfig = BIOMES.wind;
 
     constructor() {
         super('WinScene');
@@ -18,8 +21,9 @@ export class WinScene extends Scene {
     init(data: WinSceneData): void {
         this.finalTime = data.time || '45.0';
         this.finalKwh = data.kwh || 120;
-        // ~0.42 kg CO2 avoided per kWh generated from clean wind energy
-        this.finalCo2 = Math.round(this.finalKwh * 0.42);
+        const biomeKey = data.biome || window.__selectedBiome || 'wind';
+        this.biome = BIOMES[biomeKey] || BIOMES.wind;
+        this.finalCo2 = Math.round(this.finalKwh * this.biome.co2Factor);
     }
 
     create(): void {
@@ -42,12 +46,12 @@ export class WinScene extends Scene {
             color: '#FFFFFF'
         }).setOrigin(0.5);
 
-        // Trophy / Glider Showcase
-        const glider = this.add.sprite(width / 2, 140, 'wind_glider').setScale(3.0);
-        if (glider.preFX) glider.preFX.addGlow(0x00E5FF, 3, 0.6);
+        // Trophy / Vehicle Showcase
+        const vehicle = this.add.sprite(width / 2, 140, this.biome.vehicleKey).setScale(3.0);
+        if (vehicle.preFX) vehicle.preFX.addGlow(this.biome.themeColorHex, 3, 0.6);
 
         this.tweens.add({
-            targets: glider,
+            targets: vehicle,
             y: 130,
             duration: 900,
             yoyo: true,
@@ -56,11 +60,11 @@ export class WinScene extends Scene {
         });
 
         // Title
-        this.add.text(width / 2, 185, 'CIRCUITO COLINAS EÓLICAS', {
+        this.add.text(width / 2, 185, `CIRCUITO ${this.biome.name}`, {
             fontSize: '16px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',
-            color: '#FACC15'
+            color: this.biome.themeColor
         }).setOrigin(0.5);
 
         // Telemetry Card
@@ -84,7 +88,7 @@ export class WinScene extends Scene {
             color: '#38BDF8'
         });
 
-        this.add.text(36, 290, `⚡ Energía Eólica Captada: ${this.finalKwh} kWh`, {
+        this.add.text(36, 290, `⚡ ${this.biome.energyLabel} Captada: ${this.finalKwh} kWh`, {
             fontSize: '14px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',
@@ -102,19 +106,10 @@ export class WinScene extends Scene {
         const infoCard = this.add.graphics();
         infoCard.fillStyle(0x1E293B, 0.85);
         infoCard.fillRoundedRect(22, 385, width - 44, 160, 8);
-        infoCard.lineStyle(1, 0x0284C7, 0.6);
+        infoCard.lineStyle(1, this.biome.themeColorHex, 0.6);
         infoCard.strokeRoundedRect(22, 385, width - 44, 160, 8);
 
-        const academicText = [
-            'LECCIÓN DE INGENIERÍA Y SOSTENIBILIDAD:',
-            'El viento es variable y fluctuante. La ingeniería',
-            'de sistemas aplica modelos de Deep Learning (CNN-LSTM)',
-            'para predecir la velocidad del viento con horas de',
-            'anticipación. Así se balancea la carga en la red',
-            'inteligente sin requerir plantas térmicas fósiles.'
-        ].join('\n');
-
-        this.add.text(width / 2, 465, academicText, {
+        this.add.text(width / 2, 465, this.biome.academicText.join('\n'), {
             fontSize: '11px',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#E2E8F0',
@@ -142,7 +137,7 @@ export class WinScene extends Scene {
         hitZone.on('pointerdown', () => {
             this.cameras.main.fadeOut(250, 10, 14, 26);
             this.time.delayedCall(250, () => {
-                this.scene.start('MainScene');
+                this.scene.start('MainScene', { biome: this.biome.id });
             });
         });
 

@@ -726,6 +726,301 @@ function drawTurbineBlades(x, y) {
     return TRANSPARENT;
 }
 
+// ── 26. SOLAR SPEEDER (SLED) (32x32) ──
+function drawSolarSpeeder(x, y) {
+    const dx = Math.abs(x - 15.5);
+    // Aerodynamic wedge solar speeder
+    if (y >= 4 && y <= 27) {
+        const maxWidth = (y - 4) * 0.52 + 1.5;
+        if (dx <= maxWidth) {
+            // Dark obsidian rim
+            if (dx >= maxWidth - 1.2) return hexToRgba('#1E1B4B');
+
+            // Lateral solar collector arrays (gold & orange reflection)
+            if (dx >= maxWidth - 2.8 && y >= 9) {
+                return (y % 3 === 0) ? hexToRgba('#F59E0B') : hexToRgba('#FACC15');
+            }
+
+            // Pilot bubble canopy
+            if (y >= 10 && y <= 18 && dx <= 3.2) {
+                if (y >= 12 && y <= 15 && dx <= 2.0) {
+                    if (y === 12) return hexToRgba('#FACC15');
+                    if (y === 13 && dx <= 1.2) return hexToRgba('#F59E0B'); // Orange gold visor
+                    return hexToRgba('#D97706');
+                }
+                return hexToRgba('#0F172A');
+            }
+
+            // Photovoltaic cell texture on central hood
+            if (dx <= 3.5 && y >= 19 && y <= 26) {
+                if ((x + y) % 2 === 0) return hexToRgba('#1E3A8A'); // Blue silicon
+                return hexToRgba('#2563EB');
+            }
+
+            // Sleek golden hull
+            if (dx <= 1.2) return hexToRgba('#FEF08A');
+            return hexToRgba('#FDE047');
+        }
+    }
+
+    // Plasma thrusters
+    if (y >= 28 && y <= 30 && ((x >= 10 && x <= 13) || (x >= 18 && x <= 21))) {
+        if (y === 30) return hexToRgba('#F59E0B'); // Golden orange plasma trail
+        return hexToRgba('#475569');
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 27. SOLAR VALLEY TRACK (64x64) ──
+function drawSolarTrack(x, y) {
+    // Warm deep quartz & silicon desert canyon track - smooth and zero-strobe
+    // Base: deep warm slate / bronze `#1B1612`
+    let r = 27, g = 22, b = 18;
+
+    // Organic sand & quartz dust variation (subtle ±1..2)
+    const grain = ((x * 13 + y * 19) ^ (x * 5)) % 7;
+    if (grain === 0) { r += 2; g += 1; b += 0; }
+    else if (grain === 1) { r -= 1; g -= 1; b -= 1; }
+
+    // Gentle vertical photon-guide streamlines
+    const streakCol = x % 16;
+    if (streakCol === 5 || streakCol === 11) {
+        const wave = (y + x * 2) % 32;
+        if (wave < 18) {
+            r += 5; g += 3; b += 1; // Faint amber glow line
+        }
+    }
+
+    // Faint golden center track guide
+    if ((x === 31 || x === 32) && (y % 16 < 8)) {
+        r += 12; g += 9; b += 2; // Warm amber dashed guide
+    }
+
+    return [r, g, b, 255];
+}
+
+// ── 28. SOLAR VALLEY BORDER (32x32) ──
+function drawSolarBorder(x, y) {
+    // Rich golden sand dunes / canyon rim
+    let base = '#451A03';
+    if (x <= 6) base = '#290E02';
+    else if (x >= 26) {
+        const t = (x - 26) / 5;
+        return t > 0.6 ? hexToRgba('#1B1612') : hexToRgba('#2A1A10');
+    }
+
+    const noise = (x * 7 + y * 11) % 13;
+    if (noise === 0) return hexToRgba('#78350F');
+    if (noise === 1) return hexToRgba('#92400E');
+    if ((x + y * 2) % 9 === 0) return hexToRgba('#B45309');
+
+    return hexToRgba(base);
+}
+
+// ── 29. SOLAR FLARE BOOST PAD (48x32) ──
+function drawSolarFlare(x, y) {
+    // Concentrated radiant sunlight chevron
+    const chevrons = [14, 26, 38];
+    for (const cx of chevrons) {
+        const distFromCenter = Math.abs(x - cx);
+        const targetY = 16 - distFromCenter * 0.8;
+        if (Math.abs(y - targetY) <= 2.2 && distFromCenter <= 9) {
+            if (Math.abs(y - targetY) <= 1.0) return hexToRgba('#FFFFFF'); // White hot core
+            return hexToRgba('#F59E0B', 230); // Golden radiant fire
+        }
+    }
+
+    // Heat shimmer lines
+    if ((x + y * 3) % 11 === 0 && y >= 4 && y <= 28) {
+        return hexToRgba('#FDE047', 140);
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 30. SOLAR DUST OBSTACLE (32x32) ──
+function drawSolarDust(x, y) {
+    // Swirling dust and sandstorm vortex
+    const dx = x - 15.5;
+    const dy = y - 15.5;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+    const spiral = dist + Math.sin(angle * 3) * 2.5;
+
+    if (spiral <= 12) {
+        if (dist <= 3) return hexToRgba('#78350F'); // Dense dust eye
+        if (dist <= 7) return hexToRgba('#B45309', 220);
+        if (dist <= 11) return hexToRgba('#D97706', 180);
+        return hexToRgba('#F59E0B', 120);
+    }
+    return TRANSPARENT;
+}
+
+// ── 31. SOLAR CONCENTRATION TOWER (32x32) ──
+function drawSolarTower(x, y) {
+    // Sleek white central tower mast
+    if (y >= 10 && y <= 31 && x >= 14 && x <= 17) {
+        if (x === 14 || x === 17) return hexToRgba('#64748B');
+        return hexToRgba('#F1F5F9');
+    }
+    // Base platform
+    if (y >= 28 && y <= 31 && x >= 11 && x <= 20) return hexToRgba('#334155');
+
+    // Molten salt receiver orb on top (radiant amber glow)
+    const dx = x - 15.5;
+    const dy = y - 8.5;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 4.5) {
+        if (dist <= 2.0) return hexToRgba('#FFFFFF');
+        if (dist <= 3.5) return hexToRgba('#FACC15');
+        return hexToRgba('#F59E0B');
+    }
+    return TRANSPARENT;
+}
+
+// ── 32. HYDRO FOIL SPEEDER (32x32) ──
+function drawHydroFoil(x, y) {
+    const dx = Math.abs(x - 15.5);
+    // Hydrodynamic catamaran / hydrofoil hull
+    if (y >= 4 && y <= 27) {
+        const maxWidth = (y - 4) * 0.46 + 1.2;
+        if (dx <= maxWidth) {
+            // Navy hydrodynamic outline
+            if (dx >= maxWidth - 1.1) return hexToRgba('#082F49');
+
+            // Twin outrigger sponsons (dx > maxWidth - 2.8)
+            if (dx >= maxWidth - 2.8 && y >= 10) {
+                return (y % 2 === 0) ? hexToRgba('#0284C7') : hexToRgba('#00E5FF');
+            }
+
+            // Pilot bubble
+            if (y >= 11 && y <= 18 && dx <= 3.2) {
+                if (y >= 13 && y <= 16 && dx <= 2.0) {
+                    if (y === 13) return hexToRgba('#38BDF8');
+                    if (y === 14 && dx <= 1.2) return hexToRgba('#00E5FF'); // Cyan visor
+                    return hexToRgba('#0284C7');
+                }
+                return hexToRgba('#0C4A6E');
+            }
+
+            // Deep ocean blue and turquoise wave stripes
+            if (dx >= 2.5 && dx <= 4.0 && y >= 10 && y <= 24) return hexToRgba('#06B6D4');
+
+            // Central aqua composite spine
+            if (dx <= 1.2) return hexToRgba('#E0F2FE');
+            return hexToRgba('#BAE6FD');
+        }
+    }
+
+    // Water jet thrusters at rear
+    if (y >= 28 && y <= 30 && ((x >= 11 && x <= 13) || (x >= 18 && x <= 20))) {
+        if (y === 30) return hexToRgba('#00E5FF'); // Water spray / jet plume
+        return hexToRgba('#0369A1');
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 33. HYDRO RAPIDS TRACK (64x64) ──
+function drawHydroTrack(x, y) {
+    // Deep rushing river / hydraulic flume channel - low contrast, zero strobe
+    // Base: deep navy-cyan `#071E2B`
+    let r = 7, g = 30, b = 43;
+
+    // Organic water current variation (subtle ±1..2)
+    const grain = ((x * 11 + y * 23) ^ (x * 7)) % 7;
+    if (grain === 0) { r += 1; g += 2; b += 3; }
+    else if (grain === 1) { r -= 1; g -= 1; b -= 1; }
+
+    // Gentle vertical laminar water streamlines
+    const streakCol = x % 16;
+    if (streakCol === 3 || streakCol === 13) {
+        const wave = (y + x * 2) % 32;
+        if (wave < 18) {
+            r += 1; g += 4; b += 8; // Soft cyan water foam streak
+        }
+    }
+
+    // Faint center water channel line
+    if ((x === 31 || x === 32) && (y % 16 < 8)) {
+        r += 3; g += 10; b += 18; // Soft aqua dashed guide
+    }
+
+    return [r, g, b, 255];
+}
+
+// ── 34. HYDRO CANAL BORDER (32x32) ──
+function drawHydroBorder(x, y) {
+    // Reinforced hydroelectric flume walls / concrete & moss
+    let base = '#082F49';
+    if (x <= 6) base = '#041B2D';
+    else if (x >= 26) {
+        const t = (x - 26) / 5;
+        return t > 0.6 ? hexToRgba('#071E2B') : hexToRgba('#062436');
+    }
+
+    const noise = (x * 9 + y * 13) % 17;
+    if (noise === 0) return hexToRgba('#0369A1');
+    if (noise === 1) return hexToRgba('#0284C7');
+    if ((x + y * 2) % 11 === 0) return hexToRgba('#0E7490');
+
+    return hexToRgba(base);
+}
+
+// ── 35. HYDRO CURRENT BOOST PAD (48x32) ──
+function drawHydroCurrent(x, y) {
+    // Pressurized water surge chevrons
+    const chevrons = [14, 26, 38];
+    for (const cx of chevrons) {
+        const distFromCenter = Math.abs(x - cx);
+        const targetY = 16 - distFromCenter * 0.8;
+        if (Math.abs(y - targetY) <= 2.2 && distFromCenter <= 9) {
+            if (Math.abs(y - targetY) <= 1.0) return hexToRgba('#FFFFFF'); // White water foam
+            return hexToRgba('#06B6D4', 230); // Hydrokinetic rush
+        }
+    }
+
+    if ((x + y * 2) % 11 === 0 && y >= 4 && y <= 28) {
+        return hexToRgba('#38BDF8', 140);
+    }
+
+    return TRANSPARENT;
+}
+
+// ── 36. HYDRO VORTEX OBSTACLE (32x32) ──
+function drawHydroVortex(x, y) {
+    // River whirlpool / vortex hazard
+    const dx = x - 15.5;
+    const dy = y - 15.5;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+    const spiral = dist + Math.sin(angle * 4) * 2.0;
+
+    if (spiral <= 12) {
+        if (dist <= 2.5) return hexToRgba('#082F49'); // Dark abyss center
+        if (dist <= 6) return hexToRgba('#0284C7', 220);
+        if (dist <= 10) return hexToRgba('#06B6D4', 180);
+        return hexToRgba('#38BDF8', 120);
+    }
+    return TRANSPARENT;
+}
+
+// ── 37. HYDRO TURBINE PYLON (32x32) ──
+function drawHydroPylon(x, y) {
+    // Hydroelectric canal pylon and penstock intake gate
+    // Pylon pillar
+    if (y >= 8 && y <= 31 && x >= 13 && x <= 18) {
+        if (x === 13 || x === 18) return hexToRgba('#1E293B');
+        return hexToRgba('#475569');
+    }
+    // Water level sensor light at top
+    if (y >= 4 && y <= 7 && x >= 14 && x <= 17) {
+        return hexToRgba('#00E5FF'); // Cyan indicator light
+    }
+    return TRANSPARENT;
+}
+
 // Ensure output directories exist
 const assetsDir = path.resolve('public/assets');
 const itemsDir = path.join(assetsDir, 'items');
@@ -764,7 +1059,7 @@ const assetsToGenerate = [
     { file: path.join(envDir, 'city_skyline.png'), width: 128, height: 48, fn: drawCitySkyline },
     { file: path.join(envDir, 'clouds.png'), width: 96, height: 24, fn: drawCloud },
 
-    // ── Colinas Eólicas Sled Racing Assets ──
+    // ── Bioma 1: Colinas Eólicas ──
     { file: path.join(trackDir, 'wind_glider.png'), size: 32, fn: drawWindGlider },
     { file: path.join(trackDir, 'wind_gust.png'), width: 48, height: 32, fn: drawWindGust },
     { file: path.join(trackDir, 'track_rock.png'), size: 32, fn: drawTrackRock },
@@ -774,6 +1069,22 @@ const assetsToGenerate = [
     { file: path.join(trackDir, 'canyon_track.png'), size: 64, fn: drawCanyonTrack },
     { file: path.join(trackDir, 'turbine_tower.png'), size: 32, fn: drawTurbineTower },
     { file: path.join(trackDir, 'turbine_blades.png'), size: 32, fn: drawTurbineBlades },
+
+    // ── Bioma 2: Valle Solar ──
+    { file: path.join(trackDir, 'solar_speeder.png'), size: 32, fn: drawSolarSpeeder },
+    { file: path.join(trackDir, 'solar_track.png'), size: 64, fn: drawSolarTrack },
+    { file: path.join(trackDir, 'solar_border.png'), size: 32, fn: drawSolarBorder },
+    { file: path.join(trackDir, 'solar_flare.png'), width: 48, height: 32, fn: drawSolarFlare },
+    { file: path.join(trackDir, 'solar_dust.png'), size: 32, fn: drawSolarDust },
+    { file: path.join(trackDir, 'solar_tower.png'), size: 32, fn: drawSolarTower },
+
+    // ── Bioma 3: Rápidos Hidroeléctricos ──
+    { file: path.join(trackDir, 'hydro_foil.png'), size: 32, fn: drawHydroFoil },
+    { file: path.join(trackDir, 'hydro_track.png'), size: 64, fn: drawHydroTrack },
+    { file: path.join(trackDir, 'hydro_border.png'), size: 32, fn: drawHydroBorder },
+    { file: path.join(trackDir, 'hydro_current.png'), width: 48, height: 32, fn: drawHydroCurrent },
+    { file: path.join(trackDir, 'hydro_vortex.png'), size: 32, fn: drawHydroVortex },
+    { file: path.join(trackDir, 'hydro_pylon.png'), size: 32, fn: drawHydroPylon },
 ];
 
 for (const item of assetsToGenerate) {

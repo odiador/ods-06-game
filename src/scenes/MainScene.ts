@@ -1,26 +1,30 @@
 import { Scene, Types } from 'phaser';
-import { TrackObstacle } from '../gameobjects/TrackObstacle';
+import { TrackObstacle, ObstacleType } from '../gameobjects/TrackObstacle';
 import { WindGlider } from '../gameobjects/WindGlider';
 import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
+import { BIOMES, BiomeConfig, BiomeMode } from '../types/game';
 
-interface RoadsideTurbine {
-    tower: Phaser.GameObjects.Sprite;
-    blades: Phaser.GameObjects.Sprite;
+interface RoadsideDecoration {
+    main: Phaser.GameObjects.Sprite;
+    extra?: Phaser.GameObjects.Sprite;
 }
 
 export class MainScene extends Scene {
     private glider!: WindGlider;
     private cursors!: Types.Input.Keyboard.CursorKeys;
 
+    // Biome configuration
+    private currentBiome: BiomeConfig = BIOMES.wind;
+
     // Track layers
     private trackTile!: Phaser.GameObjects.TileSprite;
-    private leftGrassTile!: Phaser.GameObjects.TileSprite;
-    private rightGrassTile!: Phaser.GameObjects.TileSprite;
+    private leftBorderTile!: Phaser.GameObjects.TileSprite;
+    private rightBorderTile!: Phaser.GameObjects.TileSprite;
 
-    // Wind turbines along the canyon sides
-    private turbines: RoadsideTurbine[] = [];
+    // Roadside decorations along the canyon/valley/canal sides
+    private sideDecorations: RoadsideDecoration[] = [];
 
     // Groups
     private turbos!: Phaser.Physics.Arcade.Group;
@@ -40,13 +44,17 @@ export class MainScene extends Scene {
         super('MainScene');
     }
 
-    init(): void {
+    init(data?: { biome?: BiomeMode }): void {
+        const biomeKey = data?.biome || window.__selectedBiome || 'wind';
+        this.currentBiome = BIOMES[biomeKey] || BIOMES.wind;
+        window.__selectedBiome = this.currentBiome.id;
+
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = true;
         this.hasSpawnedFinishLine = false;
         window.__gameActive = true;
-        this.turbines = [];
+        this.sideDecorations = [];
     }
 
     create(): void {
@@ -54,35 +62,43 @@ export class MainScene extends Scene {
         this.raceStartTime = this.time.now;
         SoundFX.unlock();
 
-        // ── 1. Track & Canyon Borders ──
-        // Canyon grass borders (left: 0..40, right: 380..420)
-        this.leftGrassTile = this.add.tileSprite(20, height / 2, 40, height, 'grass_border').setDepth(1);
-        this.rightGrassTile = this.add.tileSprite(width - 20, height / 2, 40, height, 'grass_border').setDepth(1).setFlipX(true);
+        // ── 1. Track & Borders ──
+        this.leftBorderTile = this.add.tileSprite(20, height / 2, 40, height, this.currentBiome.borderKey).setDepth(1);
+        this.rightBorderTile = this.add.tileSprite(width - 20, height / 2, 40, height, this.currentBiome.borderKey).setDepth(1).setFlipX(true);
 
-        // Center smooth aerodynamic canyon racing chute
-        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, 'canyon_track')
+        // Center smooth aerodynamic racing lane
+        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, this.currentBiome.trackKey)
             .setDepth(2);
 
-        // Rotating wind turbines along canyon ridges (stationary mast + spinning blades)
+        // Roadside environmental structures according to biome
         for (let i = 0; i < 4; i++) {
             const leftY = 120 + i * 220;
             const rightY = 40 + i * 220;
 
-            const leftTower = this.add.sprite(20, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
-            const leftBlades = this.add.sprite(20, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+            if (this.currentBiome.sideDecoration === 'turbines') {
+                const leftTower = this.add.sprite(20, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
+                const leftBlades = this.add.sprite(20, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+                const rightTower = this.add.sprite(width - 20, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
+                const rightBlades = this.add.sprite(width - 20, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
 
-            const rightTower = this.add.sprite(width - 20, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
-            const rightBlades = this.add.sprite(width - 20, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
-
-            this.turbines.push(
-                { tower: leftTower, blades: leftBlades },
-                { tower: rightTower, blades: rightBlades }
-            );
+                this.sideDecorations.push(
+                    { main: leftTower, extra: leftBlades },
+                    { main: rightTower, extra: rightBlades }
+                );
+            } else if (this.currentBiome.sideDecoration === 'solar_towers') {
+                const leftTower = this.add.sprite(20, leftY, 'solar_tower').setScale(1.5).setDepth(3);
+                const rightTower = this.add.sprite(width - 20, rightY, 'solar_tower').setScale(1.5).setDepth(3);
+                this.sideDecorations.push({ main: leftTower }, { main: rightTower });
+            } else if (this.currentBiome.sideDecoration === 'hydro_pylons') {
+                const leftPylon = this.add.sprite(20, leftY, 'hydro_pylon').setScale(1.6).setDepth(3);
+                const rightPylon = this.add.sprite(width - 20, rightY, 'hydro_pylon').setScale(1.6).setDepth(3).setFlipX(true);
+                this.sideDecorations.push({ main: leftPylon }, { main: rightPylon });
+            }
         }
 
-        // ── 2. Glider (Sled) ──
+        // ── 2. Glider / Speeder ──
         // Positioned at lower third of screen
-        this.glider = new WindGlider(this, width / 2, height - 160);
+        this.glider = new WindGlider(this, width / 2, height - 160, this.currentBiome.vehicleKey, this.currentBiome.themeColorHex);
 
         // ── 3. Groups & Overlaps ──
         this.turbos = this.physics.add.group({ runChildUpdate: false });
@@ -126,9 +142,10 @@ export class MainScene extends Scene {
             loop: true
         });
 
-        // ── 6. Launch Racing HUD ──
+        // ── 6. Launch Racing HUD with biome config ──
         this.scene.launch('HudScene', {
-            targetDistance: this.targetDistance
+            targetDistance: this.targetDistance,
+            biome: this.currentBiome
         });
 
         this.cameras.main.fadeIn(300, 10, 14, 26);
@@ -142,21 +159,23 @@ export class MainScene extends Scene {
         const metersThisFrame = metersPerSecond * (delta / 1000);
         this.distanceTraveled = Math.min(this.targetDistance, this.distanceTraveled + metersThisFrame);
 
-        // Scroll track and grass tiles smoothly (calibrated speed, zero strobe)
+        // Scroll track and border tiles smoothly (calibrated speed, zero strobe)
         const scrollSpeed = this.glider.speed * (delta / 1000) * 8.5;
         this.trackTile.tilePositionY -= scrollSpeed;
-        this.leftGrassTile.tilePositionY -= scrollSpeed;
-        this.rightGrassTile.tilePositionY -= scrollSpeed;
+        this.leftBorderTile.tilePositionY -= scrollSpeed;
+        this.rightBorderTile.tilePositionY -= scrollSpeed;
 
-        // Move roadside turbines (tower stays vertical, blades spin on nacelle hub)
+        // Move roadside environmental structures
         const { height } = this.scale;
-        this.turbines.forEach(({ tower, blades }) => {
-            tower.y += scrollSpeed * 0.75;
-            blades.y = tower.y - 14;
-            blades.angle += 3.5;
-            if (tower.y > height + 60) {
-                tower.y = -60;
-                blades.y = tower.y - 14;
+        this.sideDecorations.forEach(({ main, extra }) => {
+            main.y += scrollSpeed * 0.75;
+            if (extra) {
+                extra.y = main.y - 14;
+                extra.angle += 3.5;
+            }
+            if (main.y > height + 60) {
+                main.y = -60;
+                if (extra) extra.y = main.y - 14;
             }
         });
 
@@ -250,19 +269,20 @@ export class MainScene extends Scene {
         const rand = Math.random();
 
         if (rand < 0.45) {
-            // 45% Wind Turbo Boost Pad
-            const turbo = new WindTurbo(this, spawnX, -40);
+            // 45% Biome Turbo Boost Pad
+            const turbo = new WindTurbo(this, spawnX, -40, this.currentBiome.turboKey, this.currentBiome.themeColorHex);
             this.turbos.add(turbo);
         } else if (rand < 0.80) {
-            // 35% Rock or Log Obstacle
-            const isRock = Math.random() < 0.6;
-            const obs = new TrackObstacle(this, spawnX, -40, isRock ? 'track_rock' : 'track_log');
+            // 35% Biome-specific Obstacle
+            const obsKeys = this.currentBiome.obstacleKeys;
+            const chosenKey = obsKeys[Math.floor(Math.random() * obsKeys.length)] as ObstacleType;
+            const obs = new TrackObstacle(this, spawnX, -40, chosenKey);
             this.obstacles.add(obs);
         } else {
-            // 20% Clean Energy Battery pack
-            const battery = this.physics.add.sprite(spawnX, -40, 'battery').setScale(1.5).setDepth(6);
+            // 20% Clean Energy Pack
+            const battery = this.physics.add.sprite(spawnX, -40, this.currentBiome.batteryKey).setScale(1.5).setDepth(6);
             (battery.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-            if (battery.preFX) battery.preFX.addGlow(0x22C55E, 2, 0.5);
+            if (battery.preFX) battery.preFX.addGlow(this.currentBiome.themeColorHex, 2, 0.5);
             this.batteries.add(battery);
         }
     }
@@ -288,7 +308,7 @@ export class MainScene extends Scene {
         this.cleanKwh += 25;
         SoundFX.playWindTurbo();
 
-        this.showPopup(turbo.x, turbo.y, '¡TURBO EÓLICO +150 km/h!', '#00E5FF');
+        this.showPopup(turbo.x, turbo.y, this.currentBiome.turboPopup, this.currentBiome.themeColor);
         EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
     }
 
@@ -316,7 +336,7 @@ export class MainScene extends Scene {
 
         this.cleanKwh += 15;
         SoundFX.playCollect(2);
-        this.showPopup(this.glider.x, this.glider.y - 20, '+15 kWh Batería', '#22C55E');
+        this.showPopup(this.glider.x, this.glider.y - 20, `+15 kWh ${this.currentBiome.energyLabel}`, '#22C55E');
         EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
     }
 
@@ -351,7 +371,8 @@ export class MainScene extends Scene {
             this.scene.start('WinScene', {
                 time: totalTimeSeconds,
                 kwh: this.cleanKwh,
-                distance: this.targetDistance
+                distance: this.targetDistance,
+                biome: this.currentBiome.id
             });
         });
     }

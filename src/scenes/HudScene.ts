@@ -1,9 +1,11 @@
 import { Scene } from 'phaser';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
+import { BiomeConfig, BIOMES } from '../types/game';
 
 interface HudInitData {
     targetDistance: number;
+    biome?: BiomeConfig;
 }
 
 export class HudScene extends Scene {
@@ -15,6 +17,7 @@ export class HudScene extends Scene {
     private muteIcon!: Phaser.GameObjects.Sprite;
 
     private targetDistance: number = 2030;
+    private biome: BiomeConfig = BIOMES.wind;
 
     constructor() {
         super('HudScene');
@@ -22,6 +25,7 @@ export class HudScene extends Scene {
 
     init(data: HudInitData): void {
         this.targetDistance = data.targetDistance || 2030;
+        this.biome = data.biome || BIOMES.wind;
     }
 
     create(): void {
@@ -45,7 +49,7 @@ export class HudScene extends Scene {
             fontSize: '18px',
             fontFamily: "'Courier New', Courier, monospace",
             fontStyle: 'bold',
-            color: '#00E5FF'
+            color: this.biome.themeColor
         });
 
         // Audio Mute Icon (Center Top)
@@ -60,7 +64,7 @@ export class HudScene extends Scene {
         });
 
         // Energy Harvested (Top Right)
-        this.add.text(width - 22, 16, 'ENERGÍA EÓLICA', {
+        this.add.text(width - 22, 16, this.biome.energyLabel, {
             fontSize: '9px',
             fontFamily: "'Courier New', Courier, monospace",
             color: '#94A3B8'
@@ -101,7 +105,7 @@ export class HudScene extends Scene {
         if (speed >= 130) {
             this.speedText.setColor('#FACC15'); // Gold for Turbo
         } else {
-            this.speedText.setColor('#00E5FF'); // Cyan for normal cruising
+            this.speedText.setColor(this.biome.themeColor);
         }
     }
 
@@ -128,10 +132,10 @@ export class HudScene extends Scene {
         this.trackBarGfx.fillStyle(0x1E293B, 1);
         this.trackBarGfx.fillRoundedRect(barX, barY, barWidth, barHeight, 3);
 
-        // Track progress fill (green gradient line)
+        // Track progress fill (theme colored gradient line)
         const clamped = Math.max(0, Math.min(100, progress));
         const fillW = (clamped / 100) * barWidth;
-        this.trackBarGfx.fillStyle(0x22C55E, 1);
+        this.trackBarGfx.fillStyle(this.biome.themeColorHex, 1);
         this.trackBarGfx.fillRoundedRect(barX, barY, fillW, barHeight, 3);
 
         // Finish flag marker at 100%
@@ -140,7 +144,7 @@ export class HudScene extends Scene {
 
         // Player's racer icon position
         const racerX = barX + fillW;
-        this.racerDot.fillStyle(0x00E5FF, 1);
+        this.racerDot.fillStyle(this.biome.themeColorHex, 1);
         this.racerDot.fillCircle(racerX, barY + barHeight / 2, 6);
         this.racerDot.fillStyle(0xFFFFFF, 1);
         this.racerDot.fillCircle(racerX, barY + barHeight / 2, 3);

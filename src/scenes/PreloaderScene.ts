@@ -70,7 +70,7 @@ export class PreloaderScene extends Scene {
         this.load.image('city_skyline', 'assets/env/city_skyline.png');
         this.load.image('clouds', 'assets/env/clouds.png');
 
-        // Colinas Eólicas Track Assets
+        // Bioma 1: Colinas Eólicas Track Assets
         this.load.image('wind_glider', 'assets/track/wind_glider.png');
         this.load.image('wind_gust', 'assets/track/wind_gust.png');
         this.load.image('track_rock', 'assets/track/track_rock.png');
@@ -80,6 +80,22 @@ export class PreloaderScene extends Scene {
         this.load.image('canyon_track', 'assets/track/canyon_track.png');
         this.load.image('turbine_tower', 'assets/track/turbine_tower.png');
         this.load.image('turbine_blades', 'assets/track/turbine_blades.png');
+
+        // Bioma 2: Valle Solar Track Assets
+        this.load.image('solar_speeder', 'assets/track/solar_speeder.png');
+        this.load.image('solar_track', 'assets/track/solar_track.png');
+        this.load.image('solar_border', 'assets/track/solar_border.png');
+        this.load.image('solar_flare', 'assets/track/solar_flare.png');
+        this.load.image('solar_dust', 'assets/track/solar_dust.png');
+        this.load.image('solar_tower', 'assets/track/solar_tower.png');
+
+        // Bioma 3: Rápidos Hidroeléctricos Track Assets
+        this.load.image('hydro_foil', 'assets/track/hydro_foil.png');
+        this.load.image('hydro_track', 'assets/track/hydro_track.png');
+        this.load.image('hydro_border', 'assets/track/hydro_border.png');
+        this.load.image('hydro_current', 'assets/track/hydro_current.png');
+        this.load.image('hydro_vortex', 'assets/track/hydro_vortex.png');
+        this.load.image('hydro_pylon', 'assets/track/hydro_pylon.png');
     }
 
     create(): void {
