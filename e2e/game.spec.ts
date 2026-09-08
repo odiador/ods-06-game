@@ -204,4 +204,63 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         expect(isMainActive).toBe(true);
         expect(errors).toHaveLength(0);
     });
+
+    test('switches to Energy Catcher (Pou Food Drop style) mode, plays and catches clean energy', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (err) => errors.push(err.message));
+
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+
+        if (box) {
+            // Click Mode 2 tab: ATRAPA (POU) - around 74% width, 12% height
+            const modeTabY = box.y + box.height * (102 / 840);
+            const catcherTabX = box.x + box.width * 0.74;
+            await page.mouse.click(catcherTabX, modeTabY);
+            await page.waitForTimeout(400);
+
+            // Screenshot Menu showing Mode 2 active
+            const screenshotDir = path.resolve('screenshots');
+            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-catcher-mode.png') });
+
+            // Click JUGAR ATRAPA-ENERGIA (approx 65% down)
+            const clickX = box.x + box.width / 2;
+            const clickY = box.y + box.height * (553 / 840);
+            await page.mouse.click(clickX, clickY);
+        }
+
+        // Wait for CatcherScene to load
+        await page.waitForTimeout(1000);
+
+        // Verify CatcherScene is active
+        const isCatcherActive = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return game ? game.scene.isActive('CatcherScene') : false;
+        });
+        expect(isCatcherActive).toBe(true);
+
+        // Play for a few seconds using A/D and arrow keys to move BESS technician
+        await page.keyboard.press('KeyA');
+        await page.waitForTimeout(200);
+        await page.keyboard.press('KeyD');
+        await page.waitForTimeout(200);
+        await page.keyboard.press('ArrowLeft');
+        await page.waitForTimeout(200);
+        await page.keyboard.press('ArrowRight');
+        await page.waitForTimeout(200);
+
+        // Allow some items to fall and be collected
+        await page.waitForTimeout(2000);
+
+        // Screenshot Catcher gameplay
+        const screenshotDir = path.resolve('screenshots');
+        await page.screenshot({ path: path.join(screenshotDir, 'e2e-catcher-gameplay.png') });
+
+        expect(errors).toHaveLength(0);
+    });
 });

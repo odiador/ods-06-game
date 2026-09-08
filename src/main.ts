@@ -1,4 +1,5 @@
 import { Game, Types } from 'phaser';
+import { CatcherScene } from './scenes/CatcherScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { HudScene } from './scenes/HudScene';
 import { MainScene } from './scenes/MainScene';
@@ -29,6 +30,7 @@ const config: Types.Core.GameConfig = {
         MenuScene,
         MainScene,
         HudScene,
+        CatcherScene,
         GameOverScene,
         WinScene
     ]
