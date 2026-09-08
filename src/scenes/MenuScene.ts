@@ -20,9 +20,9 @@ export class MenuScene extends Scene {
         this.selectedBiomeKey = (window as any).__selectedBiome || 'wind';
         (window as any).__gameActive = false;
 
-        // ── 1. Background ──
+        // ── 1. Background (Solid retro dark tone) ──
         const bg = this.add.graphics();
-        bg.fillGradientStyle(0x050811, 0x050811, 0x0B1D2A, 0x0E2822, 1);
+        bg.fillStyle(0x080C16, 1);
         bg.fillRect(0, 0, width, height);
 
         // Distant clouds
@@ -43,18 +43,20 @@ export class MenuScene extends Scene {
 
         // ── 2. Header & ODS 7 Badge ──
         const badgeBg = this.add.graphics();
-        badgeBg.fillStyle(0xFCC30B, 1);
-        badgeBg.fillRoundedRect(width / 2 - 130, 26, 260, 26, 6);
+        badgeBg.fillStyle(0xD97706, 1);
+        badgeBg.fillRect(width / 2 - 130, 26, 260, 24);
+        badgeBg.lineStyle(1, 0xFBBF24, 1);
+        badgeBg.strokeRect(width / 2 - 130, 26, 260, 24);
 
-        this.add.text(width / 2, 39, 'ODS 7 · ENERGIA LIMPIA 2030', {
-            fontSize: '9px',
+        this.add.text(width / 2, 38, 'ODS 7 · ENERGIA LIMPIA 2030', {
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: '#FEF3C7'
         }).setOrigin(0.5);
 
         // Game Title
-        this.add.text(width / 2, 70, 'SLED RACING', {
-            fontSize: '22px',
+        this.add.text(width / 2, 68, 'SLED RACING', {
+            fontSize: '20px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF',
             align: 'center'
@@ -93,13 +95,13 @@ export class MenuScene extends Scene {
 
         // Current Biome Title & Subtitle
         this.biomeTitleText = this.add.text(width / 2, 185, '', {
-            fontSize: '12px',
+            fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#00E5FF',
             align: 'center'
         }).setOrigin(0.5);
 
-        this.biomeSubtitleText = this.add.text(width / 2, 210, '', {
+        this.biomeSubtitleText = this.add.text(width / 2, 208, '', {
             fontSize: '11px',
             fontFamily: "'Silkscreen', monospace",
             color: '#94A3B8'
@@ -120,53 +122,52 @@ export class MenuScene extends Scene {
             ease: 'Sine.easeInOut'
         });
 
-        // ── 5. Mission Instructions ──
+        // ── 5. Mission Instructions (With comfortable margins) ──
         this.instructionsText = this.add.text(width / 2, 400, '', {
-            fontSize: '12px',
+            fontSize: '11px',
             fontFamily: "'Silkscreen', monospace",
             color: '#CBD5E1',
             align: 'center',
-            lineSpacing: 8
+            lineSpacing: 8,
+            wordWrap: { width: width - 64, useAdvancedWrap: true }
         }).setOrigin(0.5);
 
-        // ── 6. Start Race Button ──
+        // ── 6. Start Race Button (Flat retro arcade button) ──
         const btnY = 530;
-        const btnBg = this.add.graphics();
-        btnBg.fillStyle(0xFACC15, 1);
-        btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
+        const btnW = 240;
+        const btnH = 46;
+        const btnX = width / 2 - btnW / 2;
 
-        const btnText = this.add.text(width / 2, btnY, 'INICIAR CARRERA', {
-            fontSize: '12px',
+        const btnBg = this.add.graphics();
+        const renderStartBtn = (hover: boolean): void => {
+            btnBg.clear();
+            btnBg.fillStyle(hover ? 0xFBBF24 : 0xF59E0B, 1);
+            btnBg.fillRect(btnX, btnY, btnW, btnH);
+            btnBg.fillStyle(0xB45309, 1);
+            btnBg.fillRect(btnX, btnY + btnH - 3, btnW, 3);
+        };
+        renderStartBtn(false);
+
+        this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR CARRERA', {
+            fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
 
-        const btnHitArea = this.add.zone(width / 2, btnY, 260, 52)
+        const btnHitArea = this.add.zone(width / 2, btnY + btnH / 2, btnW, btnH)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
 
         const startRace = (): void => {
             btnHitArea.disableInteractive();
-            this.cameras.main.fadeOut(250, 10, 14, 26);
-            this.time.delayedCall(250, () => {
+            this.cameras.main.fadeOut(200, 8, 12, 22);
+            this.time.delayedCall(200, () => {
                 this.scene.start('MainScene', { biome: this.selectedBiomeKey });
             });
         };
 
-        btnHitArea.on('pointerover', () => {
-            btnBg.clear();
-            btnBg.fillStyle(0xFEF08A, 1);
-            btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
-            btnText.setScale(1.04);
-        });
-
-        btnHitArea.on('pointerout', () => {
-            btnBg.clear();
-            btnBg.fillStyle(0xFACC15, 1);
-            btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
-            btnText.setScale(1);
-        });
-
+        btnHitArea.on('pointerover', () => renderStartBtn(true));
+        btnHitArea.on('pointerout', () => renderStartBtn(false));
         btnHitArea.on('pointerdown', startRace);
 
         // Keyboard triggers (Space / Enter to launch, 1, 2, 3 to switch biome)

@@ -31,12 +31,12 @@ export class HudScene extends Scene {
     create(): void {
         const { width } = this.scale;
 
-        // Top HUD Panel (Glassmorphic dark dashboard)
+        // Top HUD Panel (Solid retro dashboard)
         const panel = this.add.graphics();
-        panel.fillStyle(0x0F172A, 0.90);
-        panel.fillRoundedRect(10, 10, width - 20, 84, 8);
-        panel.lineStyle(1, 0x334155, 0.8);
-        panel.strokeRoundedRect(10, 10, width - 20, 84, 8);
+        panel.fillStyle(0x080C16, 0.96);
+        panel.fillRect(0, 0, width, 88);
+        panel.fillStyle(0x1E293B, 1);
+        panel.fillRect(0, 87, width, 1);
 
         // Speedometer (Top Left)
         this.add.text(22, 16, 'VELOCIDAD', {
