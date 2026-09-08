@@ -20,7 +20,7 @@ body {
     user-select: none;
     position: fixed;
     overscroll-behavior: none;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Silkscreen', 'Press Start 2P', monospace;
 }
 
 #app {
@@ -51,24 +51,4 @@ body {
     position: relative;
     z-index: 1;
     box-shadow: 0 0 30px rgba(0, 0, 0, 0.6);
-}
-
-/* ── Invisible Touch Areas ── */
-#touch-area-left,
-#touch-area-right {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 50%;
-    z-index: 10;
-    touch-action: none;
-    cursor: pointer;
-}
-
-#touch-area-left {
-    left: 0;
-}
-
-#touch-area-right {
-    right: 0;
-}
+}

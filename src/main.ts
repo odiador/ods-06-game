@@ -35,44 +35,61 @@ const config: Types.Core.GameConfig = {
 };
 
 function initGame(): void {
-    new Game(config);
+    const game = new Game(config);
+    (window as any).__phaserGame = game;
 
-    // Setup global touch controls state
+    // Disable Phaser auto-pause on window blur or Alt+Tab
+    game.events.off(Phaser.Core.Events.BLUR);
+    game.events.off(Phaser.Core.Events.FOCUS);
+    game.events.off(Phaser.Core.Events.HIDDEN);
+    game.events.off(Phaser.Core.Events.VISIBLE);
+
+    // Prevent right-click context menu so right-click can be used seamlessly for controls
+    window.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+    });
+
+    // Global touch/pointer controls state
     window.__touchControls = { left: false, right: false };
     window.__gameActive = false;
 
-    function setupTouchArea(id: string, key: 'left' | 'right'): void {
-        const area = document.getElementById(id);
-        if (!area) return;
+    let isPointerActive = false;
 
-        const onDown = (e: Event): void => {
-            if (!window.__gameActive) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (window.__touchControls) {
-                window.__touchControls[key] = true;
-            }
-        };
+    const handlePointerMove = (e: PointerEvent): void => {
+        if (!window.__gameActive || !isPointerActive) return;
+        const canvas = document.querySelector('#phaser-container canvas');
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const midX = rect.left + rect.width / 2;
 
-        const onUp = (e: Event): void => {
-            if (!window.__gameActive) return;
-            e.preventDefault();
-            e.stopPropagation();
-            if (window.__touchControls) {
-                window.__touchControls[key] = false;
-            }
-        };
+        if (!window.__touchControls) return;
+        if (e.clientX < midX) {
+            window.__touchControls.left = true;
+            window.__touchControls.right = false;
+        } else {
+            window.__touchControls.left = false;
+            window.__touchControls.right = true;
+        }
+    };
 
-        area.addEventListener('touchstart', onDown, { passive: false });
-        area.addEventListener('touchend', onUp, { passive: false });
-        area.addEventListener('touchcancel', onUp, { passive: false });
-        area.addEventListener('mousedown', onDown);
-        area.addEventListener('mouseup', onUp);
-        area.addEventListener('mouseleave', onUp);
-    }
+    const handlePointerDown = (e: PointerEvent): void => {
+        if (!window.__gameActive) return;
+        isPointerActive = true;
+        handlePointerMove(e);
+    };
 
-    setupTouchArea('touch-area-left', 'left');
-    setupTouchArea('touch-area-right', 'right');
+    const handlePointerUp = (): void => {
+        isPointerActive = false;
+        if (window.__touchControls) {
+            window.__touchControls.left = false;
+            window.__touchControls.right = false;
+        }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
 }
 
 if (document.readyState === 'loading') {
@@ -80,3 +97,4 @@ if (document.readyState === 'loading') {
 } else {
     initGame();
 }
+

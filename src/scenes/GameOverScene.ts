@@ -20,6 +20,7 @@ export class GameOverScene extends Scene {
 
     create(): void {
         const { width, height } = this.scale;
+        (window as any).__gameActive = false;
 
         // Background
         const bg = this.add.graphics();
@@ -29,85 +30,104 @@ export class GameOverScene extends Scene {
         // Alert Banner
         const banner = this.add.graphics();
         banner.fillStyle(0xDC2626, 1);
-        banner.fillRoundedRect(width / 2 - 130, 80, 260, 42, 8);
+        banner.fillRoundedRect(width / 2 - 130, 75, 260, 36, 6);
 
-        this.add.text(width / 2, 101, 'COLAPSO EN LA RED', {
-            fontSize: '15px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.add.text(width / 2, 93, 'COLAPSO EN LA RED', {
+            fontSize: '11px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF'
         }).setOrigin(0.5);
 
         // Main Title
-        this.add.text(width / 2, 155, 'APAGÓN\nELÉCTRICO', {
-            fontSize: '36px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.add.text(width / 2, 145, 'APAGON\nELECTRICO', {
+            fontSize: '24px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#F87171',
             align: 'center',
-            lineSpacing: 4
+            lineSpacing: 8
         }).setOrigin(0.5, 0);
 
         // Stats card
         const card = this.add.graphics();
         card.fillStyle(0x1E293B, 0.9);
-        card.fillRoundedRect(25, 270, width - 50, 95, 8);
+        card.fillRoundedRect(22, 260, width - 44, 95, 8);
         card.lineStyle(1, 0xEF4444, 0.6);
-        card.strokeRoundedRect(25, 270, width - 50, 95, 8);
+        card.strokeRoundedRect(22, 260, width - 44, 95, 8);
 
-        this.add.text(width / 2, 298, `Energía Captada: ${this.finalScore} kWh`, {
-            fontSize: '15px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.add.text(width / 2, 290, `ENERGIA CAPTADA: ${this.finalScore} kWh`, {
+            fontSize: '13px',
+            fontFamily: "'Silkscreen', monospace",
             color: '#FFFFFF'
         }).setOrigin(0.5);
 
-        this.add.text(width / 2, 332, `Matriz Alcanzada: ${this.finalProgress}% (Meta: 80%)`, {
-            fontSize: '14px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.add.text(width / 2, 325, `MATRIZ ALCANZADA: ${this.finalProgress}% (META: 80%)`, {
+            fontSize: '12px',
+            fontFamily: "'Silkscreen', monospace",
             color: '#F87171'
         }).setOrigin(0.5);
 
         // Educational message from Systems Engineering research
         const message = [
-            'LECCIÓN DE SOSTENIBILIDAD:',
-            'La dependencia fósil y las sobrecargas',
-            'desestabilizan la infraestructura crítica.',
-            'La ingeniería de software permite coordinar',
-            'microrredes y evitar interrupciones masivas.'
+            'LECCION DE SOSTENIBILIDAD:',
+            'La dependencia fosil y las sobrecargas',
+            'desestabilizan la red electrica.',
+            'La ingenieria de sistemas coordina',
+            'microrredes y BESS para evitar apagones.'
         ].join('\n');
 
-        this.add.text(width / 2, 440, message, {
-            fontSize: '13px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.add.text(width / 2, 430, message, {
+            fontSize: '12px',
+            fontFamily: "'Silkscreen', monospace",
             color: '#CBD5E1',
             align: 'center',
             lineSpacing: 8
         }).setOrigin(0.5);
 
         // Retry button
-        const btnY = 590;
+        const btnY = 575;
         const btnBg = this.add.graphics();
         btnBg.fillStyle(0xFACC15, 1);
-        btnBg.fillRoundedRect(width / 2 - 110, btnY - 24, 220, 48, 8);
+        btnBg.fillRoundedRect(width / 2 - 120, btnY - 24, 240, 48, 8);
 
-        this.add.text(width / 2, btnY, 'REINTENTAR MISIÓN', {
-            fontSize: '15px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        const btnText = this.add.text(width / 2, btnY, 'REINTENTAR MISION', {
+            fontSize: '11px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
 
-        const hitZone = this.add.zone(width / 2, btnY, 220, 48)
+        const hitZone = this.add.zone(width / 2, btnY, 240, 48)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
 
-        hitZone.on('pointerdown', () => {
-            this.cameras.main.fadeOut(250, 10, 14, 26);
-            this.time.delayedCall(250, () => {
+        const retry = (): void => {
+            hitZone.disableInteractive();
+            this.cameras.main.fadeOut(200, 10, 14, 26);
+            this.time.delayedCall(200, () => {
                 this.scene.start('MainScene');
             });
+        };
+
+        hitZone.on('pointerover', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0xFEF08A, 1);
+            btnBg.fillRoundedRect(width / 2 - 120, btnY - 24, 240, 48, 8);
+            btnText.setScale(1.05);
         });
 
-        this.cameras.main.fadeIn(300, 10, 14, 26);
+        hitZone.on('pointerout', () => {
+            btnBg.clear();
+            btnBg.fillStyle(0xFACC15, 1);
+            btnBg.fillRoundedRect(width / 2 - 120, btnY - 24, 240, 48, 8);
+            btnText.setScale(1);
+        });
+
+        hitZone.on('pointerdown', retry);
+
+        if (this.input.keyboard) {
+            this.input.keyboard.once('keydown-SPACE', retry);
+            this.input.keyboard.once('keydown-ENTER', retry);
+        }
+
+        this.cameras.main.fadeIn(250, 10, 14, 26);
     }
 }

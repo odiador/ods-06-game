@@ -40,7 +40,7 @@ export const BIOMES: Record<BiomeMode, BiomeConfig> = {
         batteryKey: 'battery',
         sideDecoration: 'turbines',
         energyLabel: 'ENERGÍA EÓLICA',
-        turboPopup: '¡TURBO EÓLICO +170 km/h!',
+        turboPopup: '¡TURBO EÓLICO +50 km/h!',
         co2Factor: 0.42,
         academicTopic: 'PREDICCIÓN DE VIENTO CON DEEP LEARNING (CNN-LSTM):',
         academicText: [
@@ -66,7 +66,7 @@ export const BIOMES: Record<BiomeMode, BiomeConfig> = {
         batteryKey: 'solar',
         sideDecoration: 'solar_towers',
         energyLabel: 'ENERGÍA SOLAR',
-        turboPopup: '¡SOBRECARGA SOLAR +170 km/h!',
+        turboPopup: '¡SOBRECARGA SOLAR +50 km/h!',
         co2Factor: 0.48,
         academicTopic: 'CONTROL MPPT Y GESTIÓN DE LA CURVA DE PATO:',
         academicText: [
@@ -92,7 +92,7 @@ export const BIOMES: Record<BiomeMode, BiomeConfig> = {
         batteryKey: 'hydro',
         sideDecoration: 'hydro_pylons',
         energyLabel: 'ENERGÍA HÍDRICA',
-        turboPopup: '¡SURGE HIDROCINÉTICO +170 km/h!',
+        turboPopup: '¡SURGE HIDROCINÉTICO +50 km/h!',
         co2Factor: 0.52,
         academicTopic: 'ALMACENAMIENTO POR BOMBEO E INERCIA SÍNCRONA:',
         academicText: [

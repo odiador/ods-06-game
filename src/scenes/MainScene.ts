@@ -14,6 +14,9 @@ interface RoadsideDecoration {
 export class MainScene extends Scene {
     private glider!: WindGlider;
     private cursors!: Types.Input.Keyboard.CursorKeys;
+    private keyA?: Phaser.Input.Keyboard.Key;
+    private keyD?: Phaser.Input.Keyboard.Key;
+    private keyW?: Phaser.Input.Keyboard.Key;
 
     // Biome configuration
     private currentBiome: BiomeConfig = BIOMES.wind;
@@ -132,6 +135,9 @@ export class MainScene extends Scene {
         // ── 4. Input ──
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
+            this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
+            this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+            this.keyW = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
         }
 
         // ── 5. Spawner Timers ──
@@ -179,10 +185,15 @@ export class MainScene extends Scene {
             }
         });
 
-        // Steering Controls
+        // Steering Controls (Arrows, A/D, or pointer drag)
         const touch = window.__touchControls;
-        const left = (this.cursors && this.cursors.left.isDown) || (touch && touch.left);
-        const right = (this.cursors && this.cursors.right.isDown) || (touch && touch.right);
+        const left = (this.cursors && this.cursors.left.isDown) || (this.keyA && this.keyA.isDown) || (touch && touch.left);
+        const right = (this.cursors && this.cursors.right.isDown) || (this.keyD && this.keyD.isDown) || (touch && touch.right);
+        const accel = (this.cursors && this.cursors.up.isDown) || (this.keyW && this.keyW.isDown);
+
+        if (accel) {
+            this.glider.manualAccelerate(delta / 1000);
+        }
 
         // Keep glider inside canyon track lane
         const minX = 60;

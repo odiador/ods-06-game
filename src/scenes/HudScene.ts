@@ -39,16 +39,15 @@ export class HudScene extends Scene {
         panel.strokeRoundedRect(10, 10, width - 20, 84, 8);
 
         // Speedometer (Top Left)
-        this.add.text(22, 16, 'VELOCÍMETRO', {
-            fontSize: '9px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.add.text(22, 16, 'VELOCIDAD', {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#94A3B8'
         });
 
-        this.speedText = this.add.text(22, 28, '45 km/h', {
-            fontSize: '18px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.speedText = this.add.text(22, 30, '45 km/h', {
+            fontSize: '12px',
+            fontFamily: "'Press Start 2P', monospace",
             color: this.biome.themeColor
         });
 
@@ -65,22 +64,21 @@ export class HudScene extends Scene {
 
         // Energy Harvested (Top Right)
         this.add.text(width - 22, 16, this.biome.energyLabel, {
-            fontSize: '9px',
-            fontFamily: "'Courier New', Courier, monospace",
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#94A3B8'
         }).setOrigin(1, 0);
 
-        this.energyText = this.add.text(width - 22, 28, '0 kWh', {
-            fontSize: '18px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.energyText = this.add.text(width - 22, 30, '0 kWh', {
+            fontSize: '12px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#FACC15'
         }).setOrigin(1, 0);
 
         // Track Distance & Linear Race Bar (Bottom of HUD)
-        this.distanceText = this.add.text(22, 54, `CARRERA META 2030: 0m / ${this.targetDistance}m`, {
-            fontSize: '9px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.distanceText = this.add.text(22, 54, `META 2030: 0m / ${this.targetDistance}m`, {
+            fontSize: '11px',
+            fontFamily: "'Silkscreen', monospace",
             color: '#CBD5E1'
         });
 
@@ -114,7 +112,7 @@ export class HudScene extends Scene {
     }
 
     private updateDistance(data: { current: number; target: number; progress: number }): void {
-        this.distanceText.setText(`CARRERA META 2030: ${data.current}m / ${data.target}m`);
+        this.distanceText.setText(`META 2030: ${data.current}m / ${data.target}m`);
         this.renderRaceTrack(data.progress);
     }
 

@@ -63,14 +63,13 @@ export class WindGlider extends Physics.Arcade.Sprite {
         if (!this.isSpinningOut) {
             if (this.isBoosting) {
                 // Turbo gradually settles down smoothly back to cruising speed
-                this.speed = Math.max(this.maxNormalSpeed, this.speed - 16 * dt);
+                this.speed = Math.max(this.maxNormalSpeed, this.speed - 20 * dt);
                 if (this.speed <= this.maxNormalSpeed + 1) {
                     this.isBoosting = false;
                 }
             } else if (this.speed < this.maxNormalSpeed) {
-                // Gentle, progressive acceleration (+5.5 km/h per second)
-                // Builds speed steadily without instant snapping
-                const accelRate = 5.5;
+                // Increased natural progressive acceleration (+9.0 km/h per second)
+                const accelRate = 9.0;
                 this.speed = Math.min(this.maxNormalSpeed, this.speed + accelRate * dt);
             }
         }
@@ -80,6 +79,12 @@ export class WindGlider extends Physics.Arcade.Sprite {
             this.trailEmitter.explode(1, this.x - 6, this.y + 16);
             this.trailEmitter.explode(1, this.x + 6, this.y + 16);
         }
+    }
+
+    public manualAccelerate(dt: number): void {
+        if (this.isSpinningOut) return;
+        const manualRate = 18.0;
+        this.speed = Math.min(this.maxNormalSpeed + 15, this.speed + manualRate * dt);
     }
 
     public steerLeft(): void {
@@ -122,12 +127,12 @@ export class WindGlider extends Physics.Arcade.Sprite {
     }
 
     /**
-     * Hit wind gust boost pad: shoot up to 150 km/h with visual streak
+     * Hit boost pad: adds +50 km/h to current speed with visual streak
      */
     public applyTurboBoost(): void {
         if (this.isSpinningOut) return;
         this.isBoosting = true;
-        this.speed = this.maxTurboSpeed;
+        this.speed = Math.min(220, this.speed + 50);
 
         // Big burst of cyan particles
         this.trailEmitter.explode(16, this.x, this.y + 10);

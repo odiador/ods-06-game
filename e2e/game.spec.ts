@@ -127,16 +127,21 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         // Wait for race to initialize
         await page.waitForTimeout(1000);
 
-        // Steer with touch area controls
-        const touchLeft = page.locator('#touch-area-left');
-        await touchLeft.dispatchEvent('mousedown');
+        // Steer with A and D keys
+        await page.keyboard.press('KeyA');
         await page.waitForTimeout(250);
-        await touchLeft.dispatchEvent('mouseup');
+        await page.keyboard.press('KeyD');
+        await page.waitForTimeout(250);
 
-        const touchRight = page.locator('#touch-area-right');
-        await touchRight.dispatchEvent('mousedown');
-        await page.waitForTimeout(250);
-        await touchRight.dispatchEvent('mouseup');
+        // Steer with mouse drag on canvas
+        if (box) {
+            await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
+            await page.mouse.down();
+            await page.waitForTimeout(200);
+            await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5);
+            await page.waitForTimeout(200);
+            await page.mouse.up();
+        }
 
         // Allow race to progress
         await page.waitForTimeout(2500);
@@ -146,6 +151,57 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay-hydro.png') });
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay.png') });
 
+        expect(errors).toHaveLength(0);
+    });
+
+    test('renders WinScene with pixel art fonts and restarts race via CORRER OTRA VEZ button', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (err) => errors.push(err.message));
+
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        // Directly transition into WinScene to verify podium screen
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.start('WinScene', {
+                    time: '98.4',
+                    kwh: 1240,
+                    distance: 2030,
+                    biome: 'solar'
+                });
+            }
+        });
+
+        await page.waitForTimeout(1000);
+
+        // Capture screenshot of WinScene with pixel art font
+        const screenshotDir = path.resolve('screenshots');
+        await page.screenshot({ path: path.join(screenshotDir, 'e2e-win-scene.png') });
+
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+
+        if (box) {
+            // Click "CORRER OTRA VEZ" button (approx Y = 580 / 840 = 69%)
+            const btnX = box.x + box.width / 2;
+            const btnY = box.y + box.height * (580 / 840);
+            await page.mouse.click(btnX, btnY);
+        }
+
+        // Wait for fade transition back into MainScene
+        await page.waitForTimeout(1000);
+
+        // Verify that MainScene is active again
+        const isMainActive = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return game ? game.scene.isActive('MainScene') : false;
+        });
+
+        expect(isMainActive).toBe(true);
         expect(errors).toHaveLength(0);
     });
 });

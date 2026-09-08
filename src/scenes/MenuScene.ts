@@ -18,8 +18,9 @@ export class MenuScene extends Scene {
     create(): void {
         const { width, height } = this.scale;
         this.selectedBiomeKey = (window as any).__selectedBiome || 'wind';
+        (window as any).__gameActive = false;
 
-        // ── 1. Smart Grid & Canyon Background ──
+        // ── 1. Background ──
         const bg = this.add.graphics();
         bg.fillGradientStyle(0x050811, 0x050811, 0x0B1D2A, 0x0E2822, 1);
         bg.fillRect(0, 0, width, height);
@@ -43,20 +44,18 @@ export class MenuScene extends Scene {
         // ── 2. Header & ODS 7 Badge ──
         const badgeBg = this.add.graphics();
         badgeBg.fillStyle(0xFCC30B, 1);
-        badgeBg.fillRoundedRect(width / 2 - 120, 30, 240, 28, 6);
+        badgeBg.fillRoundedRect(width / 2 - 130, 26, 260, 26, 6);
 
-        this.add.text(width / 2, 44, 'ODS 7 · ENERGÍA LIMPIA 2030', {
-            fontSize: '11px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.add.text(width / 2, 39, 'ODS 7 · ENERGIA LIMPIA 2030', {
+            fontSize: '9px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
 
         // Game Title
-        this.add.text(width / 2, 85, 'SLED RACING', {
-            fontSize: '34px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.add.text(width / 2, 70, 'SLED RACING', {
+            fontSize: '22px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF',
             align: 'center'
         }).setOrigin(0.5, 0);
@@ -64,7 +63,7 @@ export class MenuScene extends Scene {
         // ── 3. 3-Biome Selector Tabs ──
         const biomesList: BiomeMode[] = ['wind', 'solar', 'hydro'];
         const tabWidth = (width - 40) / 3;
-        const tabY = 135;
+        const tabY = 125;
 
         this.tabBgs = [];
         this.tabTexts = [];
@@ -76,9 +75,8 @@ export class MenuScene extends Scene {
             this.tabBgs.push(tabBg);
 
             const tabLabel = this.add.text(tabX + tabWidth / 2, tabY + 16, bKey.toUpperCase(), {
-                fontSize: '12px',
-                fontFamily: "'Courier New', Courier, monospace",
-                fontStyle: 'bold',
+                fontSize: '9px',
+                fontFamily: "'Press Start 2P', monospace",
                 color: '#FFFFFF'
             }).setOrigin(0.5);
             this.tabTexts.push(tabLabel);
@@ -94,18 +92,16 @@ export class MenuScene extends Scene {
         });
 
         // Current Biome Title & Subtitle
-        this.biomeTitleText = this.add.text(width / 2, 192, '', {
-            fontSize: '17px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        this.biomeTitleText = this.add.text(width / 2, 185, '', {
+            fontSize: '12px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#00E5FF',
-            align: 'center',
-            letterSpacing: 2
+            align: 'center'
         }).setOrigin(0.5);
 
-        this.biomeSubtitleText = this.add.text(width / 2, 212, '', {
+        this.biomeSubtitleText = this.add.text(width / 2, 210, '', {
             fontSize: '11px',
-            fontFamily: "'Courier New', Courier, monospace",
+            fontFamily: "'Silkscreen', monospace",
             color: '#94A3B8'
         }).setOrigin(0.5);
 
@@ -126,56 +122,73 @@ export class MenuScene extends Scene {
 
         // ── 5. Mission Instructions ──
         this.instructionsText = this.add.text(width / 2, 400, '', {
-            fontSize: '11px',
-            fontFamily: "'Courier New', Courier, monospace",
+            fontSize: '12px',
+            fontFamily: "'Silkscreen', monospace",
             color: '#CBD5E1',
             align: 'center',
-            lineSpacing: 6
+            lineSpacing: 8
         }).setOrigin(0.5);
 
         // ── 6. Start Race Button ──
         const btnY = 530;
         const btnBg = this.add.graphics();
         btnBg.fillStyle(0xFACC15, 1);
-        btnBg.fillRoundedRect(width / 2 - 125, btnY - 26, 250, 52, 10);
+        btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
 
-        const btnText = this.add.text(width / 2, btnY, 'INICIAR CARRERA [ GO! ]', {
-            fontSize: '15px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+        const btnText = this.add.text(width / 2, btnY, 'INICIAR CARRERA', {
+            fontSize: '12px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
 
-        const btnHitArea = this.add.zone(width / 2, btnY, 250, 52)
+        const btnHitArea = this.add.zone(width / 2, btnY, 260, 52)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
+
+        const startRace = (): void => {
+            btnHitArea.disableInteractive();
+            this.cameras.main.fadeOut(250, 10, 14, 26);
+            this.time.delayedCall(250, () => {
+                this.scene.start('MainScene', { biome: this.selectedBiomeKey });
+            });
+        };
 
         btnHitArea.on('pointerover', () => {
             btnBg.clear();
             btnBg.fillStyle(0xFEF08A, 1);
-            btnBg.fillRoundedRect(width / 2 - 125, btnY - 26, 250, 52, 10);
+            btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
             btnText.setScale(1.04);
         });
 
         btnHitArea.on('pointerout', () => {
             btnBg.clear();
             btnBg.fillStyle(0xFACC15, 1);
-            btnBg.fillRoundedRect(width / 2 - 125, btnY - 26, 250, 52, 10);
+            btnBg.fillRoundedRect(width / 2 - 130, btnY - 26, 260, 52, 8);
             btnText.setScale(1);
         });
 
-        btnHitArea.on('pointerdown', () => {
-            this.cameras.main.fadeOut(250, 10, 14, 26);
-            this.time.delayedCall(250, () => {
-                this.scene.start('MainScene', { biome: this.selectedBiomeKey });
-            });
-        });
+        btnHitArea.on('pointerdown', startRace);
+
+        // Keyboard triggers (Space / Enter to launch, 1, 2, 3 to switch biome)
+        if (this.input.keyboard) {
+            this.input.keyboard.on('keydown-SPACE', startRace);
+            this.input.keyboard.on('keydown-ENTER', startRace);
+            this.input.keyboard.on('keydown-ONE', () => this.selectBiome('wind'));
+            this.input.keyboard.on('keydown-TWO', () => this.selectBiome('solar'));
+            this.input.keyboard.on('keydown-THREE', () => this.selectBiome('hydro'));
+        }
 
         // Controls hint
-        this.add.text(width / 2, 620, 'Controles: Flechas ⬅ ➡ o Toca los laterales', {
-            fontSize: '12px',
-            fontFamily: "'Courier New', Courier, monospace",
+        this.add.text(width / 2, 615, 'CONTROLES: ⬅ ➡ o A / D · W ACELERA', {
+            fontSize: '10px',
+            fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
+        }).setOrigin(0.5);
+
+        this.add.text(width / 2, 640, 'Manten presionado y arrastra para girar', {
+            fontSize: '11px',
+            fontFamily: "'Silkscreen', monospace",
+            color: '#475569'
         }).setOrigin(0.5);
 
         // Refresh view with initially selected biome
@@ -189,7 +202,7 @@ export class MenuScene extends Scene {
         const biomesList: BiomeMode[] = ['wind', 'solar', 'hydro'];
         const { width } = this.scale;
         const tabWidth = (width - 40) / 3;
-        const tabY = 135;
+        const tabY = 125;
 
         // Update Tabs UI
         biomesList.forEach((bKey, idx) => {
@@ -203,7 +216,7 @@ export class MenuScene extends Scene {
                 gfx.fillStyle(bCfg.themeColorHex, 1);
                 gfx.fillRoundedRect(tabX + 2, tabY, tabWidth - 4, 32, 6);
                 this.tabTexts[idx].setColor('#0F172A');
-                this.tabTexts[idx].setText(`[ ${bCfg.name.split(' ')[0]} ]`);
+                this.tabTexts[idx].setText(`> ${bCfg.name.split(' ')[0]}`);
             } else {
                 gfx.fillStyle(0x1E293B, 0.85);
                 gfx.fillRoundedRect(tabX + 2, tabY, tabWidth - 4, 32, 6);
@@ -215,7 +228,7 @@ export class MenuScene extends Scene {
         });
 
         // Update Title and Subtitle
-        this.biomeTitleText.setText(`${config.name} ⚡`);
+        this.biomeTitleText.setText(config.name);
         this.biomeTitleText.setColor(config.themeColor);
         this.biomeSubtitleText.setText(config.subtitle);
 
@@ -226,10 +239,10 @@ export class MenuScene extends Scene {
         // Update Instructions with clean word wrapping
         this.instructionsText.setWordWrapWidth(width - 50);
         const instructions = [
-            `MISIÓN 2.030 METROS · ${config.energyLabel}`,
+            `MISION 2.030 METROS · ${config.energyLabel}`,
             `• ${config.description}`,
-            `• Acelera con turbos hasta 170 km/h y acumula kWh.`,
-            `• Esquiva obstáculos para evitar trompos y retrasos.`
+            `• Cada turbo suma +50 km/h y energia limpia.`,
+            `• Evita obstaculos para no perder velocidad.`
         ].join('\n');
         this.instructionsText.setText(instructions);
     }
