@@ -10,10 +10,11 @@ import { WinScene } from './scenes/WinScene';
 const config: Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent: 'phaser-container',
-    width: 420,
-    height: 840,
-    backgroundColor: '#0A0E1A',
-    pixelArt: true, // Enables sharp pixel art rendering
+    width: 480,
+    height: 960,
+    backgroundColor: '#F8FAFC',
+    pixelArt: false, // Smooth rendering at higher resolution
+    antialias: true,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.NO_CENTER
@@ -40,11 +41,7 @@ function initGame(): void {
     const game = new Game(config);
     (window as any).__phaserGame = game;
 
-    // Disable Phaser auto-pause on window blur or Alt+Tab
-    game.events.off(Phaser.Core.Events.BLUR);
-    game.events.off(Phaser.Core.Events.FOCUS);
-    game.events.off(Phaser.Core.Events.HIDDEN);
-    game.events.off(Phaser.Core.Events.VISIBLE);
+    // Game will automatically pause on blur / app switch (as requested)
 
     // Prevent right-click context menu so right-click can be used seamlessly for controls
     window.addEventListener('contextmenu', (e) => {

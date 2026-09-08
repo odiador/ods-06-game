@@ -1,12 +1,6 @@
 import { Scene } from 'phaser';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
-import { BiomeConfig, BIOMES } from '../types/game';
-
-interface HudInitData {
-    targetDistance: number;
-    biome?: BiomeConfig;
-}
 
 export class HudScene extends Scene {
     private speedText!: Phaser.GameObjects.Text;
@@ -17,43 +11,41 @@ export class HudScene extends Scene {
     private muteIcon!: Phaser.GameObjects.Sprite;
 
     private targetDistance: number = 2030;
-    private biome: BiomeConfig = BIOMES.wind;
 
     constructor() {
         super('HudScene');
     }
 
-    init(data: HudInitData): void {
+    init(data: { targetDistance?: number }): void {
         this.targetDistance = data.targetDistance || 2030;
-        this.biome = data.biome || BIOMES.wind;
     }
 
     create(): void {
         const { width } = this.scale;
 
-        // Top HUD Panel (Solid retro dashboard)
+        // Top HUD Panel (Light Mode Solid Dashboard)
         const panel = this.add.graphics();
-        panel.fillStyle(0x080C16, 0.96);
+        panel.fillStyle(0xFFFFFF, 1);
         panel.fillRect(0, 0, width, 88);
-        panel.fillStyle(0x1E293B, 1);
+        panel.fillStyle(0xCBD5E1, 1);
         panel.fillRect(0, 87, width, 1);
 
         // Speedometer (Top Left)
-        this.add.text(22, 16, 'VELOCIDAD', {
+        this.add.text(22, 14, 'VELOCIDAD', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#94A3B8'
+            color: '#64748B'
         });
 
-        this.speedText = this.add.text(22, 30, '45 km/h', {
+        this.speedText = this.add.text(22, 28, '45 km/h', {
             fontSize: '12px',
             fontFamily: "'Press Start 2P', monospace",
-            color: this.biome.themeColor
+            color: '#0284C7'
         });
 
         // Audio Mute Icon (Center Top)
         const soundKey = SoundFX.getMuted() ? 'sound_off' : 'sound_on';
-        this.muteIcon = this.add.sprite(width / 2, 32, soundKey)
+        this.muteIcon = this.add.sprite(width / 2, 30, soundKey)
             .setScale(1.3)
             .setInteractive({ useHandCursor: true });
 
@@ -63,23 +55,23 @@ export class HudScene extends Scene {
         });
 
         // Energy Harvested (Top Right)
-        this.add.text(width - 22, 16, this.biome.energyLabel, {
+        this.add.text(width - 22, 14, 'ENERGIA LIMPIA', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#94A3B8'
+            color: '#64748B'
         }).setOrigin(1, 0);
 
-        this.energyText = this.add.text(width - 22, 30, '0 kWh', {
+        this.energyText = this.add.text(width - 22, 28, '0 kWh', {
             fontSize: '12px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#FACC15'
+            color: '#D97706'
         }).setOrigin(1, 0);
 
         // Track Distance & Linear Race Bar (Bottom of HUD)
-        this.distanceText = this.add.text(22, 54, `META 2030: 0m / ${this.targetDistance}m`, {
+        this.distanceText = this.add.text(22, 52, `META 2030: 0m / ${this.targetDistance}m`, {
             fontSize: '11px',
             fontFamily: "'Silkscreen', monospace",
-            color: '#CBD5E1'
+            color: '#475569'
         });
 
         this.trackBarGfx = this.add.graphics();
@@ -101,14 +93,10 @@ export class HudScene extends Scene {
     private updateSpeed(speed: number): void {
         this.speedText.setText(`${speed} km/h`);
         if (speed >= 130) {
-            this.speedText.setColor('#FACC15'); // Gold for Turbo
+            this.speedText.setColor('#D97706'); // Orange/Amber for Turbo
         } else {
-            this.speedText.setColor(this.biome.themeColor);
+            this.speedText.setColor('#0284C7');
         }
-    }
-
-    private updateScore(score: number): void {
-        this.energyText.setText(`${score} kWh`);
     }
 
     private updateDistance(data: { current: number; target: number; progress: number }): void {
@@ -116,35 +104,37 @@ export class HudScene extends Scene {
         this.renderRaceTrack(data.progress);
     }
 
+    private updateScore(score: number): void {
+        this.energyText.setText(`${score} kWh`);
+    }
+
     private renderRaceTrack(progress: number): void {
         const { width } = this.scale;
         const barX = 22;
-        const barY = 70;
+        const barY = 68;
         const barWidth = width - 44;
-        const barHeight = 10;
+        const barHeight = 8;
 
         this.trackBarGfx.clear();
         this.racerDot.clear();
 
         // Track background
-        this.trackBarGfx.fillStyle(0x1E293B, 1);
-        this.trackBarGfx.fillRoundedRect(barX, barY, barWidth, barHeight, 3);
+        this.trackBarGfx.fillStyle(0xE2E8F0, 1);
+        this.trackBarGfx.fillRect(barX, barY, barWidth, barHeight);
 
-        // Track progress fill (theme colored gradient line)
+        // Track progress fill
         const clamped = Math.max(0, Math.min(100, progress));
         const fillW = (clamped / 100) * barWidth;
-        this.trackBarGfx.fillStyle(this.biome.themeColorHex, 1);
-        this.trackBarGfx.fillRoundedRect(barX, barY, fillW, barHeight, 3);
+        this.trackBarGfx.fillStyle(0x0284C7, 1);
+        this.trackBarGfx.fillRect(barX, barY, fillW, barHeight);
 
         // Finish flag marker at 100%
-        this.trackBarGfx.fillStyle(0xFACC15, 1);
+        this.trackBarGfx.fillStyle(0xD97706, 1);
         this.trackBarGfx.fillRect(barX + barWidth - 4, barY - 2, 4, barHeight + 4);
 
-        // Player's racer icon position
+        // Player racer icon
         const racerX = barX + fillW;
-        this.racerDot.fillStyle(this.biome.themeColorHex, 1);
-        this.racerDot.fillCircle(racerX, barY + barHeight / 2, 6);
-        this.racerDot.fillStyle(0xFFFFFF, 1);
-        this.racerDot.fillCircle(racerX, barY + barHeight / 2, 3);
+        this.racerDot.fillStyle(0x0F172A, 1);
+        this.racerDot.fillCircle(racerX, barY + barHeight / 2, 4);
     }
 }

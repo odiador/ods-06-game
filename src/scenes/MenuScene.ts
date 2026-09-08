@@ -1,11 +1,8 @@
 import { Scene } from 'phaser';
-import { BIOMES, BiomeMode } from '../types/game';
-
-type GameModeType = 'race' | 'catcher';
+import { GameModeId, MAIN_CIRCUIT } from '../types/game';
 
 export class MenuScene extends Scene {
-    private currentMode: GameModeType = 'race';
-    private selectedBiomeKey: BiomeMode = 'wind';
+    private currentMode: GameModeId = 'race';
 
     // UI elements
     private modeTabRaceGfx!: Phaser.GameObjects.Graphics;
@@ -13,15 +10,11 @@ export class MenuScene extends Scene {
     private modeTabCatcherGfx!: Phaser.GameObjects.Graphics;
     private modeTabCatcherText!: Phaser.GameObjects.Text;
 
-    private biomeSubtitleText!: Phaser.GameObjects.Text;
-    private biomeTitleText!: Phaser.GameObjects.Text;
-    private vehicleSprite!: Phaser.GameObjects.Sprite;
-    private boostSprite!: Phaser.GameObjects.Sprite;
+    private modeTitleText!: Phaser.GameObjects.Text;
+    private modeSubtitleText!: Phaser.GameObjects.Text;
+    private mascotSprite!: Phaser.GameObjects.Sprite;
+    private itemSprite!: Phaser.GameObjects.Sprite;
     private instructionsText!: Phaser.GameObjects.Text;
-
-    private biomeTabsContainer!: Phaser.GameObjects.Container;
-    private tabBgs: Phaser.GameObjects.Graphics[] = [];
-    private tabTexts: Phaser.GameObjects.Text[] = [];
 
     private startBtnText!: Phaser.GameObjects.Text;
     private startBtnBg!: Phaser.GameObjects.Graphics;
@@ -33,20 +26,19 @@ export class MenuScene extends Scene {
 
     create(): void {
         const { width, height } = this.scale;
-        this.selectedBiomeKey = (window as any).__selectedBiome || 'wind';
         (window as any).__gameActive = false;
 
-        // ── 1. Background (Solid retro dark tone) ──
+        // ── 1. Light Mode Retro Background ──
         const bg = this.add.graphics();
-        bg.fillStyle(0x080C16, 1);
+        bg.fillStyle(0xF1F5F9, 1);
         bg.fillRect(0, 0, width, height);
 
         // Distant clouds
-        this.add.tileSprite(width / 2, 150, width, 48, 'clouds').setAlpha(0.40);
+        this.add.tileSprite(width / 2, 150, width, 48, 'clouds').setAlpha(0.35);
 
-        // Rotating wind turbines in background
-        const turbLeft = this.add.sprite(48, 90, 'wind').setScale(1.6).setAlpha(0.45);
-        const turbRight = this.add.sprite(width - 48, 90, 'wind').setScale(1.6).setAlpha(0.45);
+        // Wind turbines in background
+        const turbLeft = this.add.sprite(48, 90, 'wind').setScale(1.6).setAlpha(0.40);
+        const turbRight = this.add.sprite(width - 48, 90, 'wind').setScale(1.6).setAlpha(0.40);
         this.tweens.add({
             targets: [turbLeft, turbRight],
             angle: 360,
@@ -59,106 +51,86 @@ export class MenuScene extends Scene {
 
         // ── 2. Top Header Badge ──
         const badgeBg = this.add.graphics();
-        badgeBg.fillStyle(0xD97706, 1);
-        badgeBg.fillRect(width / 2 - 130, 20, 260, 22);
-        badgeBg.lineStyle(1, 0xFBBF24, 1);
-        badgeBg.strokeRect(width / 2 - 130, 20, 260, 22);
+        badgeBg.fillStyle(0xFEF3C7, 1);
+        badgeBg.fillRect(width / 2 - 140, 24, 280, 24);
+        badgeBg.lineStyle(1, 0xF59E0B, 1);
+        badgeBg.strokeRect(width / 2 - 140, 24, 280, 24);
 
-        this.add.text(width / 2, 31, 'ODS 7 · ENERGIA LIMPIA 2030', {
+        this.add.text(width / 2, 36, 'ODS 7 · ENERGIA LIMPIA Y ASEQUIBLE', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#FEF3C7'
+            color: '#B45309'
         }).setOrigin(0.5);
 
         // Game Title
-        this.add.text(width / 2, 54, 'RED SOSTENIBLE', {
+        this.add.text(width / 2, 58, 'RED RENOVABLE', {
             fontSize: '18px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#FFFFFF',
+            color: '#0F172A',
             align: 'center'
         }).setOrigin(0.5, 0);
 
         // ── 3. Mode Switcher (2 Distinct Games) ──
-        const modeTabY = 88;
+        const modeTabY = 96;
         const modeTabW = (width - 48) / 2;
 
         this.modeTabRaceGfx = this.add.graphics();
         this.modeTabCatcherGfx = this.add.graphics();
 
-        this.modeTabRaceText = this.add.text(24 + modeTabW / 2, modeTabY + 14, '1. CARRERA', {
+        this.modeTabRaceText = this.add.text(24 + modeTabW / 2, modeTabY + 16, '1. CARRERA', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF'
         }).setOrigin(0.5);
 
-        this.modeTabCatcherText = this.add.text(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 14, '2. ATRAPA (POU)', {
+        this.modeTabCatcherText = this.add.text(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, '2. ATRAPAR (POU)', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#94A3B8'
+            color: '#64748B'
         }).setOrigin(0.5);
 
-        const raceHit = this.add.zone(24 + modeTabW / 2, modeTabY + 14, modeTabW, 28)
+        const raceHit = this.add.zone(24 + modeTabW / 2, modeTabY + 16, modeTabW, 32)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
         raceHit.on('pointerdown', () => this.switchGameMode('race'));
 
-        const catcherHit = this.add.zone(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 14, modeTabW, 28)
+        const catcherHit = this.add.zone(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, modeTabW, 32)
             .setOrigin(0.5)
             .setInteractive({ useHandCursor: true });
         catcherHit.on('pointerdown', () => this.switchGameMode('catcher'));
 
-        // ── 4. Biome Sub-Tabs Container (For Race Mode) ──
-        this.biomeTabsContainer = this.add.container(0, 0);
-        const biomesList: BiomeMode[] = ['wind', 'solar', 'hydro'];
-        const subTabW = (width - 48) / 3;
-        const subTabY = 126;
+        // ── 4. Mode Details Card (Clean White Surface) ──
+        const cardX = 24;
+        const cardW = width - 48;
+        const cardY = 145;
+        const cardH = 360;
 
-        this.tabBgs = [];
-        this.tabTexts = [];
+        const infoCard = this.add.graphics();
+        infoCard.fillStyle(0xFFFFFF, 1);
+        infoCard.fillRect(cardX, cardY, cardW, cardH);
+        infoCard.lineStyle(1, 0xCBD5E1, 1);
+        infoCard.strokeRect(cardX, cardY, cardW, cardH);
 
-        biomesList.forEach((bKey, idx) => {
-            const tabX = 24 + idx * subTabW;
-            const tabBg = this.add.graphics();
-            this.tabBgs.push(tabBg);
-            this.biomeTabsContainer.add(tabBg);
-
-            const tabLabel = this.add.text(tabX + subTabW / 2, subTabY + 14, bKey.toUpperCase(), {
-                fontSize: '8px',
-                fontFamily: "'Press Start 2P', monospace",
-                color: '#FFFFFF'
-            }).setOrigin(0.5);
-            this.tabTexts.push(tabLabel);
-            this.biomeTabsContainer.add(tabLabel);
-
-            const hitZone = this.add.zone(tabX + subTabW / 2, subTabY + 14, subTabW - 4, 28)
-                .setOrigin(0.5)
-                .setInteractive({ useHandCursor: true });
-
-            hitZone.on('pointerdown', () => this.selectBiome(bKey));
-            this.biomeTabsContainer.add(hitZone);
-        });
-
-        // ── 5. Mode Details: Title & Subtitle ──
-        this.biomeTitleText = this.add.text(width / 2, 178, '', {
+        this.modeTitleText = this.add.text(width / 2, cardY + 22, '', {
             fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#00E5FF',
+            color: '#0284C7',
             align: 'center'
         }).setOrigin(0.5);
 
-        this.biomeSubtitleText = this.add.text(width / 2, 198, '', {
+        this.modeSubtitleText = this.add.text(width / 2, cardY + 42, '', {
             fontSize: '11px',
             fontFamily: "'Silkscreen', monospace",
-            color: '#94A3B8'
+            color: '#64748B'
         }).setOrigin(0.5);
 
-        // ── 6. Animated Showcase ──
-        const showcaseY = 275;
-        this.boostSprite = this.add.sprite(width / 2, showcaseY + 15, 'wind_gust').setScale(1.8).setAlpha(0.85);
-        this.vehicleSprite = this.add.sprite(width / 2, showcaseY, 'wind_glider').setScale(2.8);
+        // Animated Showcase Sprites
+        const showcaseY = cardY + 115;
+        this.itemSprite = this.add.sprite(width / 2, showcaseY + 18, 'wind_gust').setScale(1.8).setAlpha(0.85);
+        this.mascotSprite = this.add.sprite(width / 2, showcaseY, 'wind_glider').setScale(2.8);
 
         this.tweens.add({
-            targets: this.vehicleSprite,
+            targets: this.mascotSprite,
             y: showcaseY - 12,
             angle: 6,
             duration: 850,
@@ -167,26 +139,26 @@ export class MenuScene extends Scene {
             ease: 'Sine.easeInOut'
         });
 
-        // ── 7. Mission Instructions ──
-        this.instructionsText = this.add.text(width / 2, 395, '', {
+        // Instructions
+        this.instructionsText = this.add.text(width / 2, cardY + 245, '', {
             fontSize: '11px',
             fontFamily: "'Silkscreen', monospace",
-            color: '#CBD5E1',
+            color: '#334155',
             align: 'center',
             lineSpacing: 8,
-            wordWrap: { width: width - 64, useAdvancedWrap: true }
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
         }).setOrigin(0.5);
 
-        // ── 8. Start Button (Flat retro arcade button) ──
-        const btnY = 530;
-        const btnW = 250;
-        const btnH = 46;
+        // ── 5. Start Button ──
+        const btnY = 535;
+        const btnW = 260;
+        const btnH = 48;
         const btnX = width / 2 - btnW / 2;
 
         this.startBtnBg = this.add.graphics();
         this.renderStartBtn(false, btnX, btnY, btnW, btnH);
 
-        this.startBtnText = this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR JUEGO', {
+        this.startBtnText = this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR CARRERA', {
             fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
@@ -200,7 +172,7 @@ export class MenuScene extends Scene {
         this.startBtnHitZone.on('pointerout', () => this.renderStartBtn(false, btnX, btnY, btnW, btnH));
         this.startBtnHitZone.on('pointerdown', () => this.launchActiveMode());
 
-        // ── 9. Controls Hint ──
+        // Controls Hint
         this.add.text(width / 2, 615, 'CONTROLES: ⬅ ➡ o A / D · CLIC Y ARRASTRA', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
@@ -227,128 +199,97 @@ export class MenuScene extends Scene {
         this.startBtnBg.fillRect(x, y + h - 3, w, 3);
     }
 
-    private switchGameMode(mode: GameModeType): void {
+    private switchGameMode(mode: GameModeId): void {
         this.currentMode = mode;
         const { width } = this.scale;
-        const modeTabY = 88;
+        const modeTabY = 96;
         const modeTabW = (width - 48) / 2;
 
-        // Render Mode 1 Tab
+        // Render Mode 1 Tab (Race)
         this.modeTabRaceGfx.clear();
         if (mode === 'race') {
             this.modeTabRaceGfx.fillStyle(0x0284C7, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 28);
+            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 32);
             this.modeTabRaceGfx.fillStyle(0x0369A1, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY + 25, modeTabW, 3);
+            this.modeTabRaceGfx.fillRect(24, modeTabY + 29, modeTabW, 3);
             this.modeTabRaceText.setColor('#FFFFFF');
         } else {
-            this.modeTabRaceGfx.fillStyle(0x0F172A, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 28);
-            this.modeTabRaceGfx.lineStyle(1, 0x1E293B, 1);
-            this.modeTabRaceGfx.strokeRect(24, modeTabY, modeTabW, 28);
+            this.modeTabRaceGfx.fillStyle(0xFFFFFF, 1);
+            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 32);
+            this.modeTabRaceGfx.lineStyle(1, 0xCBD5E1, 1);
+            this.modeTabRaceGfx.strokeRect(24, modeTabY, modeTabW, 32);
             this.modeTabRaceText.setColor('#64748B');
         }
 
-        // Render Mode 2 Tab
+        // Render Mode 2 Tab (Catcher)
         this.modeTabCatcherGfx.clear();
         const catcherX = 24 + modeTabW + 4;
         if (mode === 'catcher') {
             this.modeTabCatcherGfx.fillStyle(0x16A34A, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 28);
+            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 32);
             this.modeTabCatcherGfx.fillStyle(0x15803D, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY + 25, modeTabW, 3);
+            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY + 29, modeTabW, 3);
             this.modeTabCatcherText.setColor('#FFFFFF');
         } else {
-            this.modeTabCatcherGfx.fillStyle(0x0F172A, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 28);
-            this.modeTabCatcherGfx.lineStyle(1, 0x1E293B, 1);
-            this.modeTabCatcherGfx.strokeRect(catcherX, modeTabY, modeTabW, 28);
+            this.modeTabCatcherGfx.fillStyle(0xFFFFFF, 1);
+            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 32);
+            this.modeTabCatcherGfx.lineStyle(1, 0xCBD5E1, 1);
+            this.modeTabCatcherGfx.strokeRect(catcherX, modeTabY, modeTabW, 32);
             this.modeTabCatcherText.setColor('#64748B');
         }
 
         if (mode === 'race') {
-            this.biomeTabsContainer.setVisible(true);
-            this.selectBiome(this.selectedBiomeKey);
+            this.showRaceModeInfo();
             this.startBtnText.setText('INICIAR CARRERA');
         } else {
-            this.biomeTabsContainer.setVisible(false);
             this.showCatcherModeInfo();
-            this.startBtnText.setText('JUGAR ATRAPA-ENERGIA');
+            this.startBtnText.setText('JUGAR ATRAPAR (POU)');
         }
     }
 
-    private selectBiome(key: BiomeMode): void {
-        this.selectedBiomeKey = key;
-        (window as any).__selectedBiome = key;
-        const config = BIOMES[key];
-        const biomesList: BiomeMode[] = ['wind', 'solar', 'hydro'];
-        const { width } = this.scale;
-        const subTabW = (width - 48) / 3;
-        const subTabY = 126;
+    private showRaceModeInfo(): void {
+        this.modeTitleText.setText(MAIN_CIRCUIT.name);
+        this.modeTitleText.setColor('#0284C7');
+        this.modeSubtitleText.setText(MAIN_CIRCUIT.subtitle);
 
-        biomesList.forEach((bKey, idx) => {
-            const isSelected = bKey === key;
-            const bCfg = BIOMES[bKey];
-            const tabX = 24 + idx * subTabW;
-            const gfx = this.tabBgs[idx];
-            gfx.clear();
-
-            if (isSelected) {
-                gfx.fillStyle(bCfg.themeColorHex, 1);
-                gfx.fillRect(tabX, subTabY, subTabW - 4, 28);
-                this.tabTexts[idx].setColor('#0F172A');
-                this.tabTexts[idx].setText(`> ${bCfg.name.split(' ')[0]}`);
-            } else {
-                gfx.fillStyle(0x0F172A, 1);
-                gfx.fillRect(tabX, subTabY, subTabW - 4, 28);
-                gfx.lineStyle(1, 0x1E293B, 1);
-                gfx.strokeRect(tabX, subTabY, subTabW - 4, 28);
-                this.tabTexts[idx].setColor('#64748B');
-                this.tabTexts[idx].setText(bCfg.name.split(' ')[0]);
-            }
-        });
-
-        this.biomeTitleText.setText(config.name);
-        this.biomeTitleText.setColor(config.themeColor);
-        this.biomeSubtitleText.setText(config.subtitle);
-
-        this.vehicleSprite.setTexture(config.vehicleKey).setScale(2.8).setAngle(0);
-        this.boostSprite.setTexture(config.turboKey).setVisible(true);
+        this.mascotSprite.setTexture(MAIN_CIRCUIT.vehicleKey).setScale(2.8).setAngle(0);
+        this.itemSprite.setTexture(MAIN_CIRCUIT.turboKey).setVisible(true).setScale(1.8);
 
         const instructions = [
-            `MISIÓN CARRERA 2.030m · ${config.energyLabel}`,
-            `• ${config.description}`,
-            `• Cada turbo suma +50 km/h y energia limpia.`,
-            `• Esquiva rocas y obstaculos para no frenar.`
+            'MISIÓN CARRERA 2.030 METROS · META ODS 7',
+            '• Unico circuito continuo de descenso vertiginoso.',
+            '• Cada turbo de viento suma +50 km/h y energia limpia.',
+            '• Esquiva rocas y postes para evitar trompos y frenados.',
+            '• Cruza la meta 2.030 m en el menor tiempo posible.'
         ].join('\n');
         this.instructionsText.setText(instructions);
     }
 
     private showCatcherModeInfo(): void {
-        this.biomeTitleText.setText('ATRAPA-ENERGIA (MODO POU)');
-        this.biomeTitleText.setColor('#4ADE80');
-        this.biomeSubtitleText.setText('ALMACENAMIENTO BESS Y ESTABILIDAD');
+        this.modeTitleText.setText('ATRAPA-ENERGIA (MODO POU)');
+        this.modeTitleText.setColor('#16A34A');
+        this.modeSubtitleText.setText('ALMACENAMIENTO BESS Y ESTABILIDAD');
 
-        this.vehicleSprite.setTexture('player_run').setScale(2.6).setAngle(0);
-        this.boostSprite.setTexture('battery').setVisible(true).setScale(2.0);
+        this.mascotSprite.setTexture('player_run').setScale(2.6).setAngle(0);
+        this.itemSprite.setTexture('battery').setVisible(true).setScale(2.0);
 
         const instructions = [
-            'MISIÓN ALMACENAMIENTO BESS · META: 350 kWh',
-            '• Atrapa Sol (+10), Viento (+15), Hidro (+20) y Baterias (+30).',
-            '• Esquiva barriles de petroleo, carbon y sobrecargas electricas.',
-            '• Encadena capturas limpias para obtener combo 2x y 3x.',
-            '• Dispones de 3 vidas para mantener la estabilidad de red.'
+            'MISIÓN ALMACENAMIENTO BESS · META: 1.000 kWh',
+            '• Atrapa Sol (+10), Viento (+15), Hidro (+20) y Baterias (+35).',
+            '• ¡CUIDADO! Si se te escapa energia limpia pierdes 1 vida.',
+            '• Esquiva barriles de petroleo, carbon y sobrecargas.',
+            '• Cuentas con 5 vidas para mantener la red electrica estable.'
         ].join('\n');
         this.instructionsText.setText(instructions);
     }
 
     private launchActiveMode(): void {
         this.startBtnHitZone.disableInteractive();
-        this.cameras.main.fadeOut(200, 8, 12, 22);
+        this.cameras.main.fadeOut(180, 241, 245, 249);
 
-        this.time.delayedCall(200, () => {
+        this.time.delayedCall(180, () => {
             if (this.currentMode === 'race') {
-                this.scene.start('MainScene', { biome: this.selectedBiomeKey });
+                this.scene.start('MainScene');
             } else {
                 this.scene.start('CatcherScene');
             }

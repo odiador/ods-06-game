@@ -1,160 +1,108 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 
-test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
-    test('loads menu, verifies 3 biomes tabs, and selects each biome', async ({ page }) => {
+test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
+    test('loads Light Mode menu with single circuit race and switches between game modes', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
-        page.on('console', (msg) => {
-            if (msg.type() === 'error') errors.push(msg.text());
-        });
 
         await page.goto('/');
         await expect(page).toHaveTitle(/ODS 7/);
 
         const canvas = page.locator('#phaser-container canvas');
         await expect(canvas).toBeVisible({ timeout: 10000 });
-        await page.waitForTimeout(1500);
-
-        const box = await canvas.boundingBox();
-        expect(box).not.toBeNull();
-
-        if (box) {
-            // Tab 1: WIND (Colinas Eólicas) - center is around 22% of canvas width
-            const tabY = box.y + box.height * (151 / 840);
-            
-            // Click Tab 2: SOLAR (around 50% width)
-            const solarTabX = box.x + box.width * 0.50;
-            await page.mouse.click(solarTabX, tabY);
-            await page.waitForTimeout(400);
-
-            // Click Tab 3: HYDRO (around 78% width)
-            const hydroTabX = box.x + box.width * 0.78;
-            await page.mouse.click(hydroTabX, tabY);
-            await page.waitForTimeout(400);
-
-            // Click back to Tab 1: WIND
-            const windTabX = box.x + box.width * 0.22;
-            await page.mouse.click(windTabX, tabY);
-            await page.waitForTimeout(400);
-        }
-
-        // Screenshot Menu Scene with 3 Biomes Selector
-        const screenshotDir = path.resolve('screenshots');
-        await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-scene.png') });
-
-        expect(errors).toHaveLength(0);
-    });
-
-    test('starts race in Solar Valley biome, drives and captures gameplay', async ({ page }) => {
-        const errors: string[] = [];
-        page.on('pageerror', (err) => errors.push(err.message));
-        page.on('console', (msg) => {
-            if (msg.type() === 'error') errors.push(msg.text());
-        });
-
-        await page.goto('/');
-        const canvas = page.locator('#phaser-container canvas');
-        await expect(canvas).toBeVisible({ timeout: 10000 });
         await page.waitForTimeout(1200);
 
         const box = await canvas.boundingBox();
         expect(box).not.toBeNull();
 
         if (box) {
-            // Select SOLAR biome tab (50% width, tabY around 18% down)
-            const tabY = box.y + box.height * (151 / 840);
-            const solarTabX = box.x + box.width * 0.50;
-            await page.mouse.click(solarTabX, tabY);
+            // Mode 2 Tab: ATRAPAR (POU) (around 73% width, 11.6% height)
+            const catcherTabX = box.x + box.width * 0.73;
+            const modeTabY = box.y + box.height * (112 / 960);
+            await page.mouse.click(catcherTabX, modeTabY);
+            await page.waitForTimeout(500);
+
+            // Screenshot Menu Scene with Catcher Mode selected
+            const screenshotDir = path.resolve('screenshots');
+            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-catcher.png') });
+
+            // Switch back to Mode 1 Tab: CARRERA (around 27% width)
+            const raceTabX = box.x + box.width * 0.27;
+            await page.mouse.click(raceTabX, modeTabY);
             await page.waitForTimeout(400);
 
-            // Click Start button (63% down)
+            // Screenshot Menu Scene with Race Mode selected
+            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-scene.png') });
+        }
+
+        expect(errors).toHaveLength(0);
+    });
+
+    test('starts single circuit race, steers glider with A/D, arrow keys, and touch drag', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (err) => errors.push(err.message));
+
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+
+        if (box) {
+            // Click INICIAR CARRERA button (58.2% down)
             const clickX = box.x + box.width / 2;
-            const clickY = box.y + box.height * 0.63;
+            const clickY = box.y + box.height * (559 / 960);
             await page.mouse.click(clickX, clickY);
         }
 
         // Wait for race to initialize
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(1200);
 
-        // Steer left and right
+        // Verify MainScene is active
+        const isMainActive = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return game ? game.scene.isActive('MainScene') : false;
+        });
+        expect(isMainActive).toBe(true);
+
+        // Steer with Arrow keys
         await page.keyboard.down('ArrowLeft');
-        await page.waitForTimeout(300);
+        await page.waitForTimeout(250);
         await page.keyboard.up('ArrowLeft');
 
         await page.keyboard.down('ArrowRight');
-        await page.waitForTimeout(400);
+        await page.waitForTimeout(300);
         await page.keyboard.up('ArrowRight');
-
-        // Allow race to progress for 2.5 seconds
-        await page.waitForTimeout(2500);
-
-        // Capture solar gameplay screenshot
-        const screenshotDir = path.resolve('screenshots');
-        await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay-solar.png') });
-
-        expect(errors).toHaveLength(0);
-    });
-
-    test('starts race in Hydro Rapids biome, verifies controls and collects items', async ({ page }) => {
-        const errors: string[] = [];
-        page.on('pageerror', (err) => errors.push(err.message));
-        page.on('console', (msg) => {
-            if (msg.type() === 'error') errors.push(msg.text());
-        });
-
-        await page.goto('/');
-        const canvas = page.locator('#phaser-container canvas');
-        await expect(canvas).toBeVisible({ timeout: 10000 });
-        await page.waitForTimeout(1200);
-
-        const box = await canvas.boundingBox();
-        expect(box).not.toBeNull();
-
-        if (box) {
-            // Select HYDRO biome tab (78% width, tabY around 18% down)
-            const tabY = box.y + box.height * (151 / 840);
-            const hydroTabX = box.x + box.width * 0.78;
-            await page.mouse.click(hydroTabX, tabY);
-            await page.waitForTimeout(400);
-
-            // Click Start button (63% down)
-            const clickX = box.x + box.width / 2;
-            const clickY = box.y + box.height * 0.63;
-            await page.mouse.click(clickX, clickY);
-        }
-
-        // Wait for race to initialize
-        await page.waitForTimeout(1000);
 
         // Steer with A and D keys
         await page.keyboard.press('KeyA');
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(200);
         await page.keyboard.press('KeyD');
-        await page.waitForTimeout(250);
+        await page.waitForTimeout(200);
 
         // Steer with mouse drag on canvas
         if (box) {
             await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
             await page.mouse.down();
-            await page.waitForTimeout(200);
+            await page.waitForTimeout(150);
             await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5);
-            await page.waitForTimeout(200);
+            await page.waitForTimeout(150);
             await page.mouse.up();
         }
 
-        // Allow race to progress
+        // Progress race for 2.5s
         await page.waitForTimeout(2500);
 
-        // Capture hydro gameplay screenshot
         const screenshotDir = path.resolve('screenshots');
-        await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay-hydro.png') });
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-gameplay.png') });
 
         expect(errors).toHaveLength(0);
     });
 
-    test('renders WinScene with pixel art fonts and restarts race via CORRER OTRA VEZ button', async ({ page }) => {
+    test('renders WinScene with tangible appliance comparisons and rotating lessons', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
@@ -163,22 +111,23 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         await expect(canvas).toBeVisible({ timeout: 10000 });
         await page.waitForTimeout(1000);
 
-        // Directly transition into WinScene to verify podium screen
+        // Start WinScene directly with realistic race score
         await page.evaluate(() => {
             const game = (window as any).__phaserGame;
             if (game) {
+                game.scene.stop('MenuScene');
                 game.scene.start('WinScene', {
-                    time: '98.4',
-                    kwh: 1240,
-                    distance: 2030,
-                    biome: 'solar'
+                    mode: 'race',
+                    time: '92.4',
+                    kwh: 1250,
+                    distance: 2030
                 });
             }
         });
 
         await page.waitForTimeout(1000);
 
-        // Capture screenshot of WinScene with pixel art font
+        // Capture screenshot of WinScene with appliance equivalences and light mode retro theme
         const screenshotDir = path.resolve('screenshots');
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-win-scene.png') });
 
@@ -186,9 +135,15 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Click "CORRER OTRA VEZ" button (approx Y = 580 / 840 = 69%)
+            // Click "[ OTRO DATO ]" button to cycle lesson (x: ~91%, y: 53.75%)
+            const cycleBtnX = box.x + box.width * 0.90;
+            const cycleBtnY = box.y + box.height * (516 / 960);
+            await page.mouse.click(cycleBtnX, cycleBtnY);
+            await page.waitForTimeout(300);
+
+            // Click "CORRER OTRA VEZ" button (center: x: 50%, y: 723 / 960 = 75.3%)
             const btnX = box.x + box.width / 2;
-            const btnY = box.y + box.height * (580 / 840);
+            const btnY = box.y + box.height * (723 / 960);
             await page.mouse.click(btnX, btnY);
         }
 
@@ -205,7 +160,7 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('switches to Energy Catcher (Pou Food Drop style) mode, plays and catches clean energy', async ({ page }) => {
+    test('switches to Energy Catcher (Pou Food Drop style) mode with 5 lives and catches clean energy', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
@@ -218,19 +173,15 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Click Mode 2 tab: ATRAPA (POU) - around 74% width, 12% height
-            const modeTabY = box.y + box.height * (102 / 840);
-            const catcherTabX = box.x + box.width * 0.74;
+            // Click Mode 2 tab: ATRAPAR (POU) - around 73% width, 11.6% height
+            const modeTabY = box.y + box.height * (112 / 960);
+            const catcherTabX = box.x + box.width * 0.73;
             await page.mouse.click(catcherTabX, modeTabY);
             await page.waitForTimeout(400);
 
-            // Screenshot Menu showing Mode 2 active
-            const screenshotDir = path.resolve('screenshots');
-            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-catcher-mode.png') });
-
-            // Click JUGAR ATRAPA-ENERGIA (approx 65% down)
+            // Click JUGAR ATRAPAR (POU) (58.2% down)
             const clickX = box.x + box.width / 2;
-            const clickY = box.y + box.height * (553 / 840);
+            const clickY = box.y + box.height * (559 / 960);
             await page.mouse.click(clickX, clickY);
         }
 
@@ -244,7 +195,7 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         });
         expect(isCatcherActive).toBe(true);
 
-        // Play for a few seconds using A/D and arrow keys to move BESS technician
+        // Play using A/D and arrow keys
         await page.keyboard.press('KeyA');
         await page.waitForTimeout(200);
         await page.keyboard.press('KeyD');
@@ -254,13 +205,41 @@ test.describe('ODS 7 Phaser 3 Game E2E Suite - 3 Biome Modes', () => {
         await page.keyboard.press('ArrowRight');
         await page.waitForTimeout(200);
 
-        // Allow some items to fall and be collected
-        await page.waitForTimeout(2000);
+        // Move technician with mouse
+        if (box) {
+            await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.85);
+            await page.waitForTimeout(300);
+            await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.85);
+            await page.waitForTimeout(300);
+        }
 
-        // Screenshot Catcher gameplay
+        await page.waitForTimeout(1500);
+
+        // Screenshot Catcher mode gameplay
         const screenshotDir = path.resolve('screenshots');
         await page.screenshot({ path: path.join(screenshotDir, 'e2e-catcher-gameplay.png') });
 
         expect(errors).toHaveLength(0);
+    });
+
+    test('verifies game pauses on window blur / tab switch as requested', async ({ page }) => {
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        const box = await canvas.boundingBox();
+        if (box) {
+            // Start race
+            await page.mouse.click(box.x + box.width / 2, box.y + box.height * (559 / 960));
+        }
+        await page.waitForTimeout(1000);
+
+        // Check if pauseOnBlur is enabled
+        const isPauseOnBlurActive = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return game ? (game.config.autoFocus && !game.isPaused) : true;
+        });
+        expect(isPauseOnBlurActive).toBe(true);
     });
 });

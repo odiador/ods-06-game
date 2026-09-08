@@ -11,8 +11,8 @@ body {
     padding: 0;
     width: 100%;
     height: 100%;
-    color: rgba(255, 255, 255, 0.95);
-    background-color: #0B0F19;
+    color: #0F172A;
+    background-color: #F1F5F9;
     overflow: hidden;
     touch-action: pan-x pan-y;
     -webkit-touch-callout: none;
@@ -28,6 +28,7 @@ body {
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+    background-color: #F1F5F9;
 }
 
 #phaser-container {
@@ -37,7 +38,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #0B0F19;
+    background-color: #F1F5F9;
     touch-action: none;
     position: relative;
 }
@@ -50,5 +51,6 @@ body {
     touch-action: none;
     position: relative;
     z-index: 1;
-    border: 1px solid #1E293B;
+    border: 1px solid #CBD5E1;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
 }

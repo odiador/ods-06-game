@@ -4,7 +4,7 @@ import { WindGlider } from '../gameobjects/WindGlider';
 import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
-import { BIOMES, BiomeConfig, BiomeMode } from '../types/game';
+import { MAIN_CIRCUIT, SingleCircuitConfig } from '../types/game';
 
 interface RoadsideDecoration {
     main: Phaser.GameObjects.Sprite;
@@ -18,15 +18,15 @@ export class MainScene extends Scene {
     private keyD?: Phaser.Input.Keyboard.Key;
     private keyW?: Phaser.Input.Keyboard.Key;
 
-    // Biome configuration
-    private currentBiome: BiomeConfig = BIOMES.wind;
+    // Single unified circuit configuration
+    private currentCircuit: SingleCircuitConfig = MAIN_CIRCUIT;
 
     // Track layers
     private trackTile!: Phaser.GameObjects.TileSprite;
     private leftBorderTile!: Phaser.GameObjects.TileSprite;
     private rightBorderTile!: Phaser.GameObjects.TileSprite;
 
-    // Roadside decorations along the canyon/valley/canal sides
+    // Roadside decorations
     private sideDecorations: RoadsideDecoration[] = [];
 
     // Groups
@@ -47,17 +47,14 @@ export class MainScene extends Scene {
         super('MainScene');
     }
 
-    init(data?: { biome?: BiomeMode }): void {
-        const biomeKey = data?.biome || window.__selectedBiome || 'wind';
-        this.currentBiome = BIOMES[biomeKey] || BIOMES.wind;
-        window.__selectedBiome = this.currentBiome.id;
-
+    init(): void {
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = true;
         this.hasSpawnedFinishLine = false;
-        window.__gameActive = true;
+        this.finishLineObj = undefined;
         this.sideDecorations = [];
+        (window as any).__gameActive = true;
     }
 
     create(): void {
@@ -65,43 +62,35 @@ export class MainScene extends Scene {
         this.raceStartTime = this.time.now;
         SoundFX.unlock();
 
+        // Ensure clean HUD lifecycle
+        this.scene.stop('HudScene');
+        this.scene.launch('HudScene', { targetDistance: this.targetDistance });
+
         // ── 1. Track & Borders ──
-        this.leftBorderTile = this.add.tileSprite(20, height / 2, 40, height, this.currentBiome.borderKey).setDepth(1);
-        this.rightBorderTile = this.add.tileSprite(width - 20, height / 2, 40, height, this.currentBiome.borderKey).setDepth(1).setFlipX(true);
+        this.leftBorderTile = this.add.tileSprite(24, height / 2, 48, height, this.currentCircuit.borderKey).setDepth(1);
+        this.rightBorderTile = this.add.tileSprite(width - 24, height / 2, 48, height, this.currentCircuit.borderKey).setDepth(1).setFlipX(true);
 
         // Center smooth aerodynamic racing lane
-        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 80, height, this.currentBiome.trackKey)
-            .setDepth(2);
+        this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 96, height, this.currentCircuit.trackKey).setDepth(2);
 
-        // Roadside environmental structures according to biome
+        // Roadside environmental wind turbines
         for (let i = 0; i < 4; i++) {
-            const leftY = 120 + i * 220;
-            const rightY = 40 + i * 220;
+            const leftY = 120 + i * 240;
+            const rightY = 40 + i * 240;
 
-            if (this.currentBiome.sideDecoration === 'turbines') {
-                const leftTower = this.add.sprite(20, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
-                const leftBlades = this.add.sprite(20, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
-                const rightTower = this.add.sprite(width - 20, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
-                const rightBlades = this.add.sprite(width - 20, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+            const leftTower = this.add.sprite(22, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
+            const leftBlades = this.add.sprite(22, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+            const rightTower = this.add.sprite(width - 22, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
+            const rightBlades = this.add.sprite(width - 22, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
 
-                this.sideDecorations.push(
-                    { main: leftTower, extra: leftBlades },
-                    { main: rightTower, extra: rightBlades }
-                );
-            } else if (this.currentBiome.sideDecoration === 'solar_towers') {
-                const leftTower = this.add.sprite(20, leftY, 'solar_tower').setScale(1.5).setDepth(3);
-                const rightTower = this.add.sprite(width - 20, rightY, 'solar_tower').setScale(1.5).setDepth(3);
-                this.sideDecorations.push({ main: leftTower }, { main: rightTower });
-            } else if (this.currentBiome.sideDecoration === 'hydro_pylons') {
-                const leftPylon = this.add.sprite(20, leftY, 'hydro_pylon').setScale(1.6).setDepth(3);
-                const rightPylon = this.add.sprite(width - 20, rightY, 'hydro_pylon').setScale(1.6).setDepth(3).setFlipX(true);
-                this.sideDecorations.push({ main: leftPylon }, { main: rightPylon });
-            }
+            this.sideDecorations.push(
+                { main: leftTower, extra: leftBlades },
+                { main: rightTower, extra: rightBlades }
+            );
         }
 
         // ── 2. Glider / Speeder ──
-        // Positioned at lower third of screen
-        this.glider = new WindGlider(this, width / 2, height - 160, this.currentBiome.vehicleKey, this.currentBiome.themeColorHex);
+        this.glider = new WindGlider(this, width / 2, height - 160, this.currentCircuit.vehicleKey, this.currentCircuit.themeColorHex);
 
         // ── 3. Groups & Overlaps ──
         this.turbos = this.physics.add.group({ runChildUpdate: false });
@@ -148,25 +137,30 @@ export class MainScene extends Scene {
             loop: true
         });
 
-        // ── 6. Launch Racing HUD with biome config ──
-        this.scene.launch('HudScene', {
-            targetDistance: this.targetDistance,
-            biome: this.currentBiome
-        });
-
-        this.cameras.main.fadeIn(300, 10, 14, 26);
+        this.cameras.main.fadeIn(200, 241, 245, 249);
     }
 
     update(_time: number, delta: number): void {
         if (!this.isRaceActive) return;
 
-        // Current speed factor in m/s (e.g. 90 km/h = 25 m/s)
-        const metersPerSecond = (this.glider.speed / 3.6);
-        const metersThisFrame = metersPerSecond * (delta / 1000);
+        const dt = delta / 1000;
+        const currentSpeedKmh = this.glider.speed;
+
+        // Metres per frame: (km/h) / 3.6 * dt
+        const speedMps = currentSpeedKmh / 3.6;
+        const metersThisFrame = speedMps * dt;
         this.distanceTraveled = Math.min(this.targetDistance, this.distanceTraveled + metersThisFrame);
 
-        // Scroll track and border tiles smoothly (calibrated speed, zero strobe)
-        const scrollSpeed = this.glider.speed * (delta / 1000) * 8.5;
+        // Telemetry Events
+        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeedKmh));
+        EventBus.emit(GameEvents.DISTANCE_UPDATED, {
+            current: Math.round(this.distanceTraveled),
+            target: this.targetDistance,
+            progress: (this.distanceTraveled / this.targetDistance) * 100
+        });
+
+        // Vertical visual parallax scrolling (speed-proportional)
+        const scrollSpeed = (currentSpeedKmh / 3.6) * dt * 38;
         this.trackTile.tilePositionY -= scrollSpeed;
         this.leftBorderTile.tilePositionY -= scrollSpeed;
         this.rightBorderTile.tilePositionY -= scrollSpeed;
@@ -186,18 +180,18 @@ export class MainScene extends Scene {
         });
 
         // Steering Controls (Arrows, A/D, or pointer drag)
-        const touch = window.__touchControls;
+        const touch = (window as any).__touchControls;
         const left = (this.cursors && this.cursors.left.isDown) || (this.keyA && this.keyA.isDown) || (touch && touch.left);
         const right = (this.cursors && this.cursors.right.isDown) || (this.keyD && this.keyD.isDown) || (touch && touch.right);
         const accel = (this.cursors && this.cursors.up.isDown) || (this.keyW && this.keyW.isDown);
 
         if (accel) {
-            this.glider.manualAccelerate(delta / 1000);
+            this.glider.manualAccelerate(dt);
         }
 
         // Keep glider inside canyon track lane
-        const minX = 60;
-        const maxX = this.scale.width - 60;
+        const minX = 64;
+        const maxX = this.scale.width - 64;
 
         if (left && this.glider.x > minX) {
             this.glider.steerLeft();
@@ -211,26 +205,18 @@ export class MainScene extends Scene {
         if (this.glider.x < minX) this.glider.x = minX;
         if (this.glider.x > maxX) this.glider.x = maxX;
 
-        // Move active track items toward player (simulate downward descent)
+        // Move active track items toward player
         this.updateTrackObjects(scrollSpeed);
 
-        // Check if finish line should spawn (when within 50m of goal)
+        // Check if finish line should spawn (within 50m of goal)
         if (this.distanceTraveled >= this.targetDistance - 50 && !this.hasSpawnedFinishLine) {
             this.spawnFinishLine();
         }
 
-        // Check race finish condition
+        // Cross finish line
         if (this.distanceTraveled >= this.targetDistance) {
             this.finishRace();
         }
-
-        // Emit telemetry to HUD
-        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(this.glider.speed));
-        EventBus.emit(GameEvents.DISTANCE_UPDATED, {
-            current: Math.round(this.distanceTraveled),
-            target: this.targetDistance,
-            progress: (this.distanceTraveled / this.targetDistance) * 100
-        });
     }
 
     private updateTrackObjects(scrollSpeed: number): void {
@@ -260,12 +246,9 @@ export class MainScene extends Scene {
             return null;
         });
 
-        // Move Finish Line if spawned
+        // Move Finish Line
         if (this.finishLineObj) {
             this.finishLineObj.y += scrollSpeed;
-            if (this.finishLineObj.y >= this.glider.y && this.isRaceActive) {
-                this.finishRace();
-            }
         }
     }
 
@@ -273,38 +256,24 @@ export class MainScene extends Scene {
         if (!this.isRaceActive || this.hasSpawnedFinishLine) return;
 
         const { width } = this.scale;
-        const laneMinX = 75;
-        const laneMaxX = width - 75;
-        const spawnX = Phaser.Math.Between(laneMinX, laneMaxX);
+        const spawnX = Phaser.Math.Between(80, width - 80);
+        const roll = Math.random();
 
-        const rand = Math.random();
-
-        if (rand < 0.45) {
-            // 45% Biome Turbo Boost Pad
-            const turbo = new WindTurbo(this, spawnX, -40, this.currentBiome.turboKey, this.currentBiome.themeColorHex);
-            this.turbos.add(turbo);
-        } else if (rand < 0.80) {
-            // 35% Biome-specific Obstacle
-            const obsKeys = this.currentBiome.obstacleKeys;
-            const chosenKey = obsKeys[Math.floor(Math.random() * obsKeys.length)] as ObstacleType;
-            const obs = new TrackObstacle(this, spawnX, -40, chosenKey);
-            this.obstacles.add(obs);
-        } else {
-            // 20% Clean Energy Pack
-            const battery = this.physics.add.sprite(spawnX, -40, this.currentBiome.batteryKey).setScale(1.5).setDepth(6);
-            (battery.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
-            if (battery.preFX) battery.preFX.addGlow(this.currentBiome.themeColorHex, 2, 0.5);
+        if (roll < 0.35) {
+            // 35% Clean Energy Pack (+15 kWh)
+            const battery = this.physics.add.sprite(spawnX, -40, this.currentCircuit.batteryKey);
+            battery.setScale(2.0).setDepth(5);
             this.batteries.add(battery);
+        } else if (roll < 0.65) {
+            // 30% Turbo Boost Pad (+50 km/h)
+            const turbo = new WindTurbo(this, spawnX, -40, this.currentCircuit.turboKey, this.currentCircuit.themeColorHex);
+            this.turbos.add(turbo);
+        } else {
+            // 35% Track Obstacle (Rocks / Logs)
+            const obsKey = Phaser.Math.RND.pick(this.currentCircuit.obstacleKeys);
+            const obstacle = new TrackObstacle(this, spawnX, -40, obsKey as ObstacleType);
+            this.obstacles.add(obstacle);
         }
-    }
-
-    private spawnFinishLine(): void {
-        this.hasSpawnedFinishLine = true;
-        const { width } = this.scale;
-        this.finishLineObj = this.physics.add.sprite(width / 2, -50, 'finish_line')
-            .setScale(3.0, 1.5)
-            .setDepth(15);
-        (this.finishLineObj.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
     }
 
     private handleTurboCollect(
@@ -316,54 +285,60 @@ export class MainScene extends Scene {
 
         turbo.collect();
         this.glider.applyTurboBoost();
-        this.cleanKwh += 25;
-        SoundFX.playWindTurbo();
 
-        this.showPopup(turbo.x, turbo.y, this.currentBiome.turboPopup, this.currentBiome.themeColor);
-        EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
+        SoundFX.playWindTurbo();
+        this.showPopup(turbo.x, turbo.y, this.currentCircuit.turboPopup, '#D97706');
     }
 
     private handleObstacleHit(
         _gliderObj: Phaser.GameObjects.GameObject,
         obstacleObj: Phaser.GameObjects.GameObject
     ): void {
-        const obstacle = obstacleObj as TrackObstacle;
-        if (obstacle.isHit || this.glider.isSpinningOut) return;
+        const obs = obstacleObj as TrackObstacle;
+        if (obs.isHit || this.glider.isSpinningOut) return;
 
-        obstacle.hit();
+        obs.hit();
         this.glider.triggerSpinOut();
-        SoundFX.playSpinOut();
-        this.cameras.main.shake(200, 0.018);
 
-        this.showPopup(this.glider.x, this.glider.y, '¡TROMPO! -40 km/h', '#EF4444');
+        SoundFX.playSpinOut();
+        this.cameras.main.shake(300, 0.015);
+        this.showPopup(this.glider.x, this.glider.y - 40, '¡TROMPO! -VELOCIDAD', '#DC2626');
     }
 
     private handleBatteryCollect(
         _gliderObj: Phaser.GameObjects.GameObject,
         batteryObj: Phaser.GameObjects.GameObject
     ): void {
-        const bat = batteryObj as Phaser.Physics.Arcade.Sprite;
-        bat.destroy();
+        const battery = batteryObj as Phaser.Physics.Arcade.Sprite;
+        battery.destroy();
 
         this.cleanKwh += 15;
         SoundFX.playCollect(2);
-        this.showPopup(this.glider.x, this.glider.y - 20, `+15 kWh ${this.currentBiome.energyLabel}`, '#22C55E');
+
         EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
+        this.showPopup(battery.x, battery.y, '+15 kWh LIMPIA', '#16A34A');
+    }
+
+    private spawnFinishLine(): void {
+        this.hasSpawnedFinishLine = true;
+        const { width } = this.scale;
+        this.finishLineObj = this.physics.add.sprite(width / 2, -50, 'finish_line');
+        this.finishLineObj.setScale(2.5, 2.0).setDepth(6);
     }
 
     private showPopup(x: number, y: number, text: string, color: string): void {
         const popup = this.add.text(x, y, text, {
-            fontSize: '12px',
-            fontFamily: "'Courier New', Courier, monospace",
-            fontStyle: 'bold',
+            fontSize: '11px',
+            fontFamily: "'Press Start 2P', monospace",
             color: color
-        }).setOrigin(0.5).setDepth(25);
+        }).setOrigin(0.5).setDepth(20);
 
         this.tweens.add({
             targets: popup,
-            y: y - 45,
+            y: y - 35,
             alpha: 0,
-            duration: 500,
+            duration: 600,
+            ease: 'Cubic.easeOut',
             onComplete: () => popup.destroy()
         });
     }
@@ -371,19 +346,19 @@ export class MainScene extends Scene {
     private finishRace(): void {
         if (!this.isRaceActive) return;
         this.isRaceActive = false;
-        window.__gameActive = false;
+        (window as any).__gameActive = false;
 
         const totalTimeSeconds = ((this.time.now - this.raceStartTime) / 1000).toFixed(1);
         SoundFX.playWin();
 
         this.scene.stop('HudScene');
-        this.cameras.main.fadeOut(400, 10, 14, 26);
-        this.time.delayedCall(400, () => {
+        this.cameras.main.fadeOut(250, 241, 245, 249);
+        this.time.delayedCall(250, () => {
             this.scene.start('WinScene', {
+                mode: 'race',
                 time: totalTimeSeconds,
                 kwh: this.cleanKwh,
-                distance: this.targetDistance,
-                biome: this.currentBiome.id
+                distance: this.targetDistance
             });
         });
     }
