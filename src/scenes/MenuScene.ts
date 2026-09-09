@@ -83,7 +83,7 @@ export class MenuScene extends Scene {
             color: '#FFFFFF'
         }).setOrigin(0.5);
 
-        this.modeTabCatcherText = this.add.text(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, '2. ATRAPAR (POU)', {
+        this.modeTabCatcherText = this.add.text(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, '2. ATRAPA-ENERGIA', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
@@ -243,7 +243,7 @@ export class MenuScene extends Scene {
             this.startBtnText.setText('INICIAR CARRERA');
         } else {
             this.showCatcherModeInfo();
-            this.startBtnText.setText('JUGAR ATRAPAR (POU)');
+            this.startBtnText.setText('JUGAR ATRAPA-ENERGIA');
         }
     }
 
@@ -266,7 +266,7 @@ export class MenuScene extends Scene {
     }
 
     private showCatcherModeInfo(): void {
-        this.modeTitleText.setText('ATRAPA-ENERGIA (MODO POU)');
+        this.modeTitleText.setText('ATRAPA-ENERGIA BESS');
         this.modeTitleText.setColor('#16A34A');
         this.modeSubtitleText.setText('ALMACENAMIENTO BESS Y ESTABILIDAD');
 

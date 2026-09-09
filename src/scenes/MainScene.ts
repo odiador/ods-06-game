@@ -5,6 +5,7 @@ import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 import { MAIN_CIRCUIT, SingleCircuitConfig } from '../types/game';
+import { InitialGuideModal } from '../ui/InitialGuideModal';
 
 interface RoadsideDecoration {
     main: Phaser.GameObjects.Sprite;
@@ -47,14 +48,17 @@ export class MainScene extends Scene {
         super('MainScene');
     }
 
-    init(): void {
+    private showGuide: boolean = true;
+
+    init(data?: { skipGuide?: boolean }): void {
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
-        this.isRaceActive = true;
+        this.isRaceActive = false;
         this.hasSpawnedFinishLine = false;
         this.finishLineObj = undefined;
         this.sideDecorations = [];
-        (window as any).__gameActive = true;
+        this.showGuide = data?.skipGuide !== true;
+        (window as any).__gameActive = false;
     }
 
     create(): void {
@@ -138,6 +142,22 @@ export class MainScene extends Scene {
         });
 
         this.cameras.main.fadeIn(200, 241, 245, 249);
+
+        if (this.showGuide) {
+            new InitialGuideModal(this, {
+                mode: 'race',
+                durationSeconds: 10,
+                onComplete: () => {
+                    this.isRaceActive = true;
+                    this.raceStartTime = this.time.now;
+                    (window as any).__gameActive = true;
+                }
+            });
+        } else {
+            this.isRaceActive = true;
+            this.raceStartTime = this.time.now;
+            (window as any).__gameActive = true;
+        }
     }
 
     update(_time: number, delta: number): void {

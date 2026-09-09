@@ -17,7 +17,7 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Mode 2 Tab: ATRAPAR (POU) (around 73% width, 11.6% height)
+            // Mode 2 Tab: ATRAPA-ENERGIA (around 73% width, 11.6% height)
             const catcherTabX = box.x + box.width * 0.73;
             const modeTabY = box.y + box.height * (112 / 960);
             await page.mouse.click(catcherTabX, modeTabY);
@@ -35,6 +35,51 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
             // Screenshot Menu Scene with Race Mode selected
             await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-scene.png') });
         }
+
+        expect(errors).toHaveLength(0);
+    });
+
+    test('displays 10-second initial guide modal explaining rules and controls with countdown', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (err) => errors.push(err.message));
+
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        const box = await canvas.boundingBox();
+        expect(box).not.toBeNull();
+
+        if (box) {
+            // Click INICIAR CARRERA button (58.2% down)
+            const clickX = box.x + box.width / 2;
+            const clickY = box.y + box.height * (559 / 960);
+            await page.mouse.click(clickX, clickY);
+        }
+
+        // Wait for MainScene to display Initial Guide Modal
+        await page.waitForTimeout(600);
+
+        // Capture screenshot of the 10-second initial briefing modal
+        const screenshotDir = path.resolve('screenshots');
+        await page.screenshot({ path: path.join(screenshotDir, 'e2e-initial-guide-modal.png') });
+
+        // Verify that game is waiting / paused while guide is shown
+        const isGameActiveBeforeSkip = await page.evaluate(() => {
+            return (window as any).__gameActive;
+        });
+        expect(isGameActiveBeforeSkip).toBe(false);
+
+        // Click "EMPEZAR YA ➔" button (center 50% width, ~82.5% height) or press Space
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(400);
+
+        // Verify game became active after dismissing guide
+        const isGameActiveAfterSkip = await page.evaluate(() => {
+            return (window as any).__gameActive;
+        });
+        expect(isGameActiveAfterSkip).toBe(true);
 
         expect(errors).toHaveLength(0);
     });
@@ -58,8 +103,10 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
             await page.mouse.click(clickX, clickY);
         }
 
-        // Wait for race to initialize
-        await page.waitForTimeout(1200);
+        // Wait for scene load and dismiss initial guide
+        await page.waitForTimeout(600);
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(400);
 
         // Verify MainScene is active
         const isMainActive = await page.evaluate(() => {
@@ -160,7 +207,7 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('switches to Energy Catcher (Pou Food Drop style) mode with 5 lives and catches clean energy', async ({ page }) => {
+    test('switches to Energy Catcher mode with 5 lives, displays guide and catches clean energy', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
@@ -173,20 +220,22 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Click Mode 2 tab: ATRAPAR (POU) - around 73% width, 11.6% height
+            // Click Mode 2 tab: ATRAPA-ENERGIA - around 73% width, 11.6% height
             const modeTabY = box.y + box.height * (112 / 960);
             const catcherTabX = box.x + box.width * 0.73;
             await page.mouse.click(catcherTabX, modeTabY);
             await page.waitForTimeout(400);
 
-            // Click JUGAR ATRAPAR (POU) (58.2% down)
+            // Click JUGAR ATRAPA-ENERGIA (58.2% down)
             const clickX = box.x + box.width / 2;
             const clickY = box.y + box.height * (559 / 960);
             await page.mouse.click(clickX, clickY);
         }
 
-        // Wait for CatcherScene to load
-        await page.waitForTimeout(1000);
+        // Wait for CatcherScene initial guide and dismiss it
+        await page.waitForTimeout(600);
+        await page.keyboard.press('Space');
+        await page.waitForTimeout(400);
 
         // Verify CatcherScene is active
         const isCatcherActive = await page.evaluate(() => {

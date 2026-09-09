@@ -1,5 +1,6 @@
 import { Scene, Types } from 'phaser';
 import { SoundFX } from '../systems/SoundFX';
+import { InitialGuideModal } from '../ui/InitialGuideModal';
 
 interface FallingItem extends Phaser.Physics.Arcade.Sprite {
     itemType: 'clean' | 'hazard';
@@ -33,9 +34,14 @@ export class CatcherScene extends Scene {
     private livesText!: Phaser.GameObjects.Text;
     private progressBarGfx!: Phaser.GameObjects.Graphics;
     private spawnerTimer?: Phaser.Time.TimerEvent;
+    private showGuide: boolean = true;
 
     constructor() {
         super('CatcherScene');
+    }
+
+    init(data?: { skipGuide?: boolean }): void {
+        this.showGuide = data?.skipGuide !== true;
     }
 
     create(): void {
@@ -44,9 +50,9 @@ export class CatcherScene extends Scene {
         this.lives = 5;
         this.combo = 0;
         this.multiplier = 1;
-        this.isGameActive = true;
+        this.isGameActive = false;
         this.startTime = this.time.now;
-        (window as any).__gameActive = true;
+        (window as any).__gameActive = false;
 
         SoundFX.unlock();
 
@@ -96,7 +102,8 @@ export class CatcherScene extends Scene {
             delay: 650,
             callback: this.spawnFallingElement,
             callbackScope: this,
-            loop: true
+            loop: true,
+            paused: this.showGuide
         });
 
         // ── 5. Controls Input ──
@@ -110,6 +117,28 @@ export class CatcherScene extends Scene {
         this.createHud(width);
 
         this.cameras.main.fadeIn(200, 241, 245, 249);
+
+        if (this.showGuide) {
+            new InitialGuideModal(this, {
+                mode: 'catcher',
+                durationSeconds: 10,
+                onComplete: () => {
+                    this.isGameActive = true;
+                    this.startTime = this.time.now;
+                    (window as any).__gameActive = true;
+                    if (this.spawnerTimer) {
+                        this.spawnerTimer.paused = false;
+                    }
+                }
+            });
+        } else {
+            this.isGameActive = true;
+            this.startTime = this.time.now;
+            (window as any).__gameActive = true;
+            if (this.spawnerTimer) {
+                this.spawnerTimer.paused = false;
+            }
+        }
     }
 
     private createHud(width: number): void {
