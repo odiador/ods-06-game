@@ -99,9 +99,12 @@ export class HudScene extends Scene {
         }
     }
 
-    private updateDistance(data: { current: number; target: number; progress: number }): void {
-        this.distanceText.setText(`META 2030: ${data.current}m / ${data.target}m`);
-        this.renderRaceTrack(data.progress);
+    private updateDistance(data: { current?: number; distance?: number; target?: number; progress?: number }): void {
+        const current = data.current ?? data.distance ?? 0;
+        const target = data.target || this.targetDistance;
+        const progress = data.progress ?? ((current / target) * 100);
+        this.distanceText.setText(`META 2030: ${current}m / ${target}m`);
+        this.renderRaceTrack(progress);
     }
 
     private updateScore(score: number): void {

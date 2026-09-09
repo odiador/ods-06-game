@@ -6,6 +6,7 @@ import { MainScene } from './scenes/MainScene';
 import { MenuScene } from './scenes/MenuScene';
 import { PreloaderScene } from './scenes/PreloaderScene';
 import { WinScene } from './scenes/WinScene';
+import { networkManager } from './systems/NetworkManager';
 
 const config: Types.Core.GameConfig = {
     type: Phaser.AUTO,
@@ -49,6 +50,7 @@ const config: Types.Core.GameConfig = {
 function initGame(): void {
     const game = new Game(config);
     (window as any).__phaserGame = game;
+    (window as any).networkManager = networkManager;
 
     // Game will automatically pause on blur / app switch (as requested)
 

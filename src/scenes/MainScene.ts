@@ -1,23 +1,32 @@
-import { Scene, Types } from 'phaser';
-import { TrackObstacle, ObstacleType } from '../gameobjects/TrackObstacle';
+import { Scene } from 'phaser';
+import { TrackObstacle } from '../gameobjects/TrackObstacle';
 import { WindGlider } from '../gameobjects/WindGlider';
 import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 import { MAIN_CIRCUIT, SingleCircuitConfig } from '../types/game';
 import { InitialGuideModal } from '../ui/InitialGuideModal';
+import { networkManager, RemotePlayerInfo } from '../systems/NetworkManager';
 
 interface RoadsideDecoration {
     main: Phaser.GameObjects.Sprite;
     extra?: Phaser.GameObjects.Sprite;
 }
 
+interface RemoteGliderObject {
+    container: Phaser.GameObjects.Container;
+    sprite: Phaser.GameObjects.Sprite;
+    nameText: Phaser.GameObjects.Text;
+    targetX: number;
+    targetDistance: number;
+}
+
 export class MainScene extends Scene {
+    // Player
     private glider!: WindGlider;
-    private cursors!: Types.Input.Keyboard.CursorKeys;
+    private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private keyA?: Phaser.Input.Keyboard.Key;
     private keyD?: Phaser.Input.Keyboard.Key;
-    private keyW?: Phaser.Input.Keyboard.Key;
 
     // Single unified circuit configuration
     private currentCircuit: SingleCircuitConfig = MAIN_CIRCUIT;
@@ -43,21 +52,30 @@ export class MainScene extends Scene {
     private raceStartTime: number = 0;
     private isRaceActive: boolean = false;
     private hasSpawnedFinishLine: boolean = false;
+    private showGuide: boolean = true;
+
+    // Multiplayer room support
+    private isMultiplayer: boolean = false;
+    private roomCode?: string;
+    private remoteGliders: Map<string, RemoteGliderObject> = new Map();
+    private multiScoreboardText?: Phaser.GameObjects.Text;
+    private multiScoreboardBg?: Phaser.GameObjects.Graphics;
 
     constructor() {
         super('MainScene');
     }
 
-    private showGuide: boolean = true;
-
-    init(data?: { skipGuide?: boolean }): void {
+    init(data?: { skipGuide?: boolean; multiplayer?: boolean; roomCode?: string }): void {
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = false;
         this.hasSpawnedFinishLine = false;
         this.finishLineObj = undefined;
         this.sideDecorations = [];
+        this.remoteGliders.clear();
         this.showGuide = data?.skipGuide !== true;
+        this.isMultiplayer = data?.multiplayer === true || networkManager.isMultiplayerActive();
+        this.roomCode = data?.roomCode || networkManager.roomCode || undefined;
         (window as any).__gameActive = false;
     }
 
@@ -130,7 +148,6 @@ export class MainScene extends Scene {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
             this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
-            this.keyW = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
         }
 
         // ── 5. Spawner Timers ──
@@ -141,102 +158,215 @@ export class MainScene extends Scene {
             loop: true
         });
 
-        this.cameras.main.fadeIn(200, 241, 245, 249);
+        // ── 6. Multiplayer Widget & Network Sync ──
+        if (this.isMultiplayer) {
+            const sbX = 16;
+            const sbY = 96;
+            const sbW = 160;
+            const sbH = 56;
 
+            this.multiScoreboardBg = this.add.graphics().setDepth(150);
+            this.multiScoreboardBg.fillStyle(0x0F172A, 0.85);
+            this.multiScoreboardBg.fillRect(sbX, sbY, sbW, sbH);
+            this.multiScoreboardBg.lineStyle(1.5, 0x0284C7, 1);
+            this.multiScoreboardBg.strokeRect(sbX, sbY, sbW, sbH);
+
+            this.multiScoreboardText = this.add.text(sbX + 8, sbY + 6, `SALA: ${this.roomCode || 'ONLINE'}\nEN VIVO`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#38BDF8',
+                lineSpacing: 4,
+                resolution: 2
+            }).setDepth(151);
+
+            EventBus.on(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
+            EventBus.on(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+        }
+
+        // Clean up listeners on shutdown
+        this.events.once('shutdown', () => {
+            EventBus.off(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
+            EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+        });
+
+        // ── 7. Race Initialization ──
         if (this.showGuide) {
             new InitialGuideModal(this, {
                 mode: 'race',
                 durationSeconds: 10,
                 onComplete: () => {
-                    this.isRaceActive = true;
-                    this.raceStartTime = this.time.now;
-                    (window as any).__gameActive = true;
+                    this.startActiveRace();
                 }
             });
         } else {
-            this.isRaceActive = true;
-            this.raceStartTime = this.time.now;
-            (window as any).__gameActive = true;
+            this.startActiveRace();
         }
+    }
+
+    private startActiveRace(): void {
+        this.isRaceActive = true;
+        this.raceStartTime = this.time.now;
+        (window as any).__gameActive = true;
     }
 
     update(_time: number, delta: number): void {
         if (!this.isRaceActive) return;
 
-        const dt = delta / 1000;
-        const currentSpeedKmh = this.glider.speed;
+        const currentSpeed = this.glider.speed;
+        const baseScroll = (currentSpeed / 45) * (delta / 16.666) * 5;
 
-        // Metres per frame: (km/h) / 3.6 * dt
-        const speedMps = currentSpeedKmh / 3.6;
-        const metersThisFrame = speedMps * dt;
-        this.distanceTraveled = Math.min(this.targetDistance, this.distanceTraveled + metersThisFrame);
+        // Animate Roadside Turbines
+        for (const deco of this.sideDecorations) {
+            deco.main.y += baseScroll * 1.0;
+            if (deco.extra) {
+                deco.extra.y += baseScroll * 1.0;
+                deco.extra.angle += currentSpeed * 0.08;
+            }
+            if (deco.main.y > this.scale.height + 60) {
+                deco.main.y = -60;
+                if (deco.extra) deco.extra.y = -74;
+            }
+        }
 
-        // Telemetry Events
-        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeedKmh));
+        // Scroll track
+        this.trackTile.tilePositionY -= baseScroll;
+        this.leftBorderTile.tilePositionY -= baseScroll;
+        this.rightBorderTile.tilePositionY -= baseScroll;
+
+        // Player Controls
+        let moveX = 0;
+        if (this.cursors?.left.isDown || this.keyA?.isDown) moveX = -1;
+        else if (this.cursors?.right.isDown || this.keyD?.isDown) moveX = 1;
+
+        const pointer = (window as any).__globalPointer;
+        if (pointer?.isDown) {
+            const dx = pointer.x - this.glider.x;
+            if (Math.abs(dx) > 10) moveX = Math.sign(dx);
+        }
+
+        if (moveX < 0) this.glider.steerLeft();
+        else if (moveX > 0) this.glider.steerRight();
+        else this.glider.centerSteering();
+
+        // Update Track Objects (turbos, obstacles, batteries)
+        this.updateTrackObjects(baseScroll);
+
+        // Distance Progression
+        const metersThisFrame = (currentSpeed / 3.6) * (delta / 1000) * 1.8;
+        this.distanceTraveled += metersThisFrame;
+
+        const curDist = Math.min(this.targetDistance, Math.round(this.distanceTraveled));
+        const progressPct = (curDist / this.targetDistance) * 100;
         EventBus.emit(GameEvents.DISTANCE_UPDATED, {
-            current: Math.round(this.distanceTraveled),
+            current: curDist,
             target: this.targetDistance,
-            progress: (this.distanceTraveled / this.targetDistance) * 100
+            progress: progressPct,
+            distance: curDist
         });
 
-        // Vertical visual parallax scrolling (speed-proportional)
-        const scrollSpeed = (currentSpeedKmh / 3.6) * dt * 38;
-        this.trackTile.tilePositionY -= scrollSpeed;
-        this.leftBorderTile.tilePositionY -= scrollSpeed;
-        this.rightBorderTile.tilePositionY -= scrollSpeed;
+        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeed));
 
-        // Move roadside environmental structures
-        const { height } = this.scale;
-        this.sideDecorations.forEach(({ main, extra }) => {
-            main.y += scrollSpeed * 0.75;
-            if (extra) {
-                extra.y = main.y - 14;
-                extra.angle += 3.5;
-            }
-            if (main.y > height + 60) {
-                main.y = -60;
-                if (extra) extra.y = main.y - 14;
-            }
-        });
-
-        // Steering Controls (Arrows, A/D, or pointer drag)
-        const touch = (window as any).__touchControls;
-        const left = (this.cursors && this.cursors.left.isDown) || (this.keyA && this.keyA.isDown) || (touch && touch.left);
-        const right = (this.cursors && this.cursors.right.isDown) || (this.keyD && this.keyD.isDown) || (touch && touch.right);
-        const accel = (this.cursors && this.cursors.up.isDown) || (this.keyW && this.keyW.isDown);
-
-        if (accel) {
-            this.glider.manualAccelerate(dt);
-        }
-
-        // Keep glider inside canyon track lane
-        const minX = 64;
-        const maxX = this.scale.width - 64;
-
-        if (left && this.glider.x > minX) {
-            this.glider.steerLeft();
-        } else if (right && this.glider.x < maxX) {
-            this.glider.steerRight();
-        } else {
-            this.glider.centerSteering();
-        }
-
-        // Clamp glider inside bounds
-        if (this.glider.x < minX) this.glider.x = minX;
-        if (this.glider.x > maxX) this.glider.x = maxX;
-
-        // Move active track items toward player
-        this.updateTrackObjects(scrollSpeed);
-
-        // Check if finish line should spawn (within 50m of goal)
-        if (this.distanceTraveled >= this.targetDistance - 50 && !this.hasSpawnedFinishLine) {
+        // Spawn finish line banner at 2000m
+        if (this.distanceTraveled >= this.targetDistance - 30 && !this.hasSpawnedFinishLine) {
             this.spawnFinishLine();
         }
 
-        // Cross finish line
-        if (this.distanceTraveled >= this.targetDistance) {
-            this.finishRace();
+        // Scroll finish line
+        if (this.finishLineObj) {
+            this.finishLineObj.y += baseScroll * 1.2;
+            if (this.finishLineObj.y >= this.glider.y) {
+                this.finishRace();
+            }
         }
+
+        // ── Multiplayer Position Sync & Interpolation ──
+        if (this.isMultiplayer) {
+            networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+
+            const { height } = this.scale;
+            const localGliderY = height - 160;
+
+            for (const [, remote] of this.remoteGliders) {
+                // Smooth interpolation of rival X
+                remote.container.x += (remote.targetX - remote.container.x) * 0.3;
+
+                // Relative Y based on track distance delta
+                const deltaDist = remote.targetDistance - this.distanceTraveled;
+                const targetY = localGliderY - deltaDist * 2.2;
+                remote.container.y += (targetY - remote.container.y) * 0.3;
+
+                // Hide if far off screen
+                const isVisible = remote.container.y > -80 && remote.container.y < height + 80;
+                remote.container.setVisible(isVisible);
+            }
+        }
+    }
+
+    private handleRemotePlayersState(players: RemotePlayerInfo[]): void {
+        if (!this.isMultiplayer) return;
+
+        const activeIds = new Set<string>();
+        let standingsStr = `SALA: ${this.roomCode || 'ONLINE'}\n`;
+
+        // Sort players by distance descending
+        const sorted = [...players].sort((a, b) => b.distance - a.distance);
+        sorted.slice(0, 3).forEach((p, idx) => {
+            const isMe = p.id === networkManager.playerId;
+            const tag = isMe ? 'TÚ' : p.name.slice(0, 6);
+            standingsStr += `${idx + 1}° ${tag}: ${Math.round(p.distance)}m\n`;
+        });
+
+        if (this.multiScoreboardText) {
+            this.multiScoreboardText.setText(standingsStr.trim());
+        }
+
+        for (const p of players) {
+            if (p.id === networkManager.playerId) continue;
+            activeIds.add(p.id);
+
+            let remote = this.remoteGliders.get(p.id);
+            if (!remote) {
+                const container = this.add.container(p.x, -200).setDepth(10);
+                const sprite = this.add.sprite(0, 0, this.currentCircuit.vehicleKey).setScale(1.2);
+                sprite.setTint(p.color || 0xF59E0B);
+
+                const nameText = this.add.text(0, -28, p.name, {
+                    fontSize: '8px',
+                    fontFamily: "'Press Start 2P', monospace",
+                    color: '#FFFFFF',
+                    backgroundColor: '#0F172A',
+                    padding: { left: 4, right: 4, top: 2, bottom: 2 },
+                    resolution: 2
+                }).setOrigin(0.5);
+
+                container.add(sprite);
+                container.add(nameText);
+
+                remote = {
+                    container,
+                    sprite,
+                    nameText,
+                    targetX: p.x,
+                    targetDistance: p.distance
+                };
+                this.remoteGliders.set(p.id, remote);
+            }
+
+            remote.targetX = p.x;
+            remote.targetDistance = p.distance;
+        }
+
+        // Cleanup dropped peers
+        for (const [id, remote] of this.remoteGliders) {
+            if (!activeIds.has(id)) {
+                remote.container.destroy();
+                this.remoteGliders.delete(id);
+            }
+        }
+    }
+
+    private handlePeerFinished(data: { name: string; rank: number }): void {
+        this.showPopup(this.scale.width / 2, 200, `¡${data.name} CRUZO EN ${data.rank}°!`, '#F59E0B');
     }
 
     private updateTrackObjects(scrollSpeed: number): void {
@@ -265,11 +395,6 @@ export class MainScene extends Scene {
             if (bat.y > height + 60) bat.destroy();
             return null;
         });
-
-        // Move Finish Line
-        if (this.finishLineObj) {
-            this.finishLineObj.y += scrollSpeed;
-        }
     }
 
     private spawnTrackElements(): void {
@@ -280,18 +405,15 @@ export class MainScene extends Scene {
         const roll = Math.random();
 
         if (roll < 0.35) {
-            // 35% Clean Energy Pack (+15 kWh)
             const battery = this.physics.add.sprite(spawnX, -40, this.currentCircuit.batteryKey);
             battery.setScale(2.0).setDepth(5);
             this.batteries.add(battery);
         } else if (roll < 0.65) {
-            // 30% Turbo Boost Pad (+50 km/h)
             const turbo = new WindTurbo(this, spawnX, -40, this.currentCircuit.turboKey, this.currentCircuit.themeColorHex);
             this.turbos.add(turbo);
         } else {
-            // 35% Track Obstacle (Rocks / Logs)
             const obsKey = Phaser.Math.RND.pick(this.currentCircuit.obstacleKeys);
-            const obstacle = new TrackObstacle(this, spawnX, -40, obsKey as ObstacleType);
+            const obstacle = new TrackObstacle(this, spawnX, -40, obsKey as any);
             this.obstacles.add(obstacle);
         }
     }
@@ -305,9 +427,13 @@ export class MainScene extends Scene {
 
         turbo.collect();
         this.glider.applyTurboBoost();
+        this.cleanKwh += 5;
 
         SoundFX.playWindTurbo();
-        this.showPopup(turbo.x, turbo.y, this.currentCircuit.turboPopup, '#D97706');
+        this.cameras.main.flash(180, 2, 132, 199, false);
+
+        EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
+        this.showPopup(this.glider.x, this.glider.y - 40, '+50 KM/H TURBO', '#0284C7');
     }
 
     private handleObstacleHit(
@@ -315,8 +441,6 @@ export class MainScene extends Scene {
         obstacleObj: Phaser.GameObjects.GameObject
     ): void {
         const obs = obstacleObj as TrackObstacle;
-        if (obs.isHit || this.glider.isSpinningOut) return;
-
         obs.hit();
         this.glider.triggerSpinOut();
 
@@ -368,8 +492,13 @@ export class MainScene extends Scene {
         this.isRaceActive = false;
         (window as any).__gameActive = false;
 
-        const totalTimeSeconds = ((this.time.now - this.raceStartTime) / 1000).toFixed(1);
+        const totalTimeMs = Math.round(this.time.now - this.raceStartTime);
+        const totalTimeSeconds = (totalTimeMs / 1000).toFixed(1);
         SoundFX.playWin();
+
+        if (this.isMultiplayer) {
+            networkManager.finishRace(totalTimeMs, this.cleanKwh);
+        }
 
         this.scene.stop('HudScene');
         this.cameras.main.fadeOut(250, 241, 245, 249);
@@ -378,7 +507,9 @@ export class MainScene extends Scene {
                 mode: 'race',
                 time: totalTimeSeconds,
                 kwh: this.cleanKwh,
-                distance: this.targetDistance
+                distance: this.targetDistance,
+                multiplayer: this.isMultiplayer,
+                rank: networkManager.isMultiplayerActive() ? 1 : undefined
             });
         });
     }

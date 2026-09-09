@@ -6,6 +6,8 @@ interface WinSceneData {
     time: string;
     kwh: number;
     distance?: number;
+    multiplayer?: boolean;
+    rank?: number;
 }
 
 export class WinScene extends Scene {
@@ -14,6 +16,8 @@ export class WinScene extends Scene {
     private finalKwh: number = 0;
     private finalCo2: number = 0;
     private currentLessonIdx: number = 0;
+    private isMultiplayer: boolean = false;
+    private rank: number = 1;
 
     private lessonTitleText!: Phaser.GameObjects.Text;
     private lessonBodyText!: Phaser.GameObjects.Text;
@@ -27,6 +31,8 @@ export class WinScene extends Scene {
         this.finalTime = data.time || '45.0';
         this.finalKwh = Math.max(1, data.kwh || 120);
         this.finalCo2 = Math.round(this.finalKwh * 0.45);
+        this.isMultiplayer = data.multiplayer === true;
+        this.rank = data.rank || 1;
         this.currentLessonIdx = Phaser.Math.Between(0, ROTATING_LESSONS.length - 1);
     }
 
@@ -50,9 +56,15 @@ export class WinScene extends Scene {
         banner.lineStyle(1, 0x16A34A, 1);
         banner.strokeRect(bannerX, bannerY, bannerW, 36);
 
-        const bannerTitle = this.mode === 'race'
+        let bannerTitle = this.mode === 'race'
             ? '¡CARRERA META 2030 COMPLETADA!'
             : '¡RESERVA BESS 2030 CARGADA!';
+
+        if (this.isMultiplayer) {
+            bannerTitle = this.rank === 1
+                ? '¡CAMPEÓN DE SALA! 1° LUGAR ORO'
+                : `¡CARRERA SALA FINALIZADA! ${this.rank}° LUGAR`;
+        }
 
         this.add.text(width / 2, bannerY + 18, bannerTitle, {
             fontSize: '9px',
