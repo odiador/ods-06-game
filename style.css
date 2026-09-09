@@ -53,4 +53,8 @@ body {
     z-index: 1;
     border: 1px solid #CBD5E1;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -webkit-crisp-edges;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
 }

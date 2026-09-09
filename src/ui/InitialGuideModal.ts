@@ -70,7 +70,8 @@ export class InitialGuideModal {
         const badgeText = this.scene.add.text(width / 2, cardY + 30, 'ODS 7 · GUIA INICIAL (10s)', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#B45309'
+            color: '#B45309',
+            resolution: 2
         }).setOrigin(0.5);
         this.container.add(badgeText);
 
@@ -84,7 +85,8 @@ export class InitialGuideModal {
                 fontSize: '11px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: isRace ? '#0284C7' : '#16A34A',
-                align: 'center'
+                align: 'center',
+                resolution: 2
             }
         ).setOrigin(0.5, 0);
         this.container.add(titleText);
@@ -97,7 +99,8 @@ export class InitialGuideModal {
                 fontSize: '10px',
                 fontFamily: "'Silkscreen', monospace",
                 color: '#64748B',
-                align: 'center'
+                align: 'center',
+                resolution: 2
             }
         ).setOrigin(0.5, 0);
         this.container.add(subtitleText);
@@ -169,7 +172,8 @@ export class InitialGuideModal {
             {
                 fontSize: '10px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#D97706'
+                color: '#D97706',
+                resolution: 2
             }
         ).setOrigin(0.5);
         this.container.add(this.countdownText);
@@ -209,7 +213,8 @@ export class InitialGuideModal {
         const btnText = this.scene.add.text(width / 2, btnY + btnH / 2 - 1, 'EMPEZAR YA ➔', {
             fontSize: '10px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: '#0F172A',
+            resolution: 2
         }).setOrigin(0.5);
         this.container.add(btnText);
 
@@ -245,7 +250,8 @@ export class InitialGuideModal {
         const titleText = this.scene.add.text(x + padding, y + 10, title, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: titleColor
+            color: titleColor,
+            resolution: 2
         });
 
         const bodyText = this.scene.add.text(x + padding, y + 26, lines.join('\n'), {
@@ -253,7 +259,8 @@ export class InitialGuideModal {
             fontFamily: "'Silkscreen', monospace",
             color: '#334155',
             lineSpacing: 5,
-            wordWrap: { width: w - padding * 2, useAdvancedWrap: true }
+            wordWrap: { width: w - padding * 2, useAdvancedWrap: true },
+            resolution: 2
         });
 
         const totalH = Math.max(76, bodyText.height + 38);

@@ -13,11 +13,20 @@ const config: Types.Core.GameConfig = {
     width: 480,
     height: 960,
     backgroundColor: '#F8FAFC',
-    pixelArt: false, // Smooth rendering at higher resolution
-    antialias: true,
+    pixelArt: true,
+    roundPixels: true,
+    antialias: false,
+    antialiasGL: false,
+    render: {
+        pixelArt: true,
+        antialias: false,
+        antialiasGL: false,
+        roundPixels: true
+    },
     scale: {
         mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.NO_CENTER
+        autoCenter: Phaser.Scale.NO_CENTER,
+        autoRound: true
     },
     physics: {
         default: 'arcade',
