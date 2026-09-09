@@ -49,27 +49,27 @@ export function getApplianceEquivalence(kwh: number): ApplianceComparison[] {
     return [
         {
             appliance: 'NEVERA EFICIENTE',
-            icon: '❄',
+            icon: '•',
             description: `Mantiene funcionando una nevera moderna durante ${fridgeDays} dias continuos (24h).`
         },
         {
             appliance: 'LAVADORA DE ROPA',
-            icon: '🧺',
+            icon: '•',
             description: `Alcanza para alimentar ${washCycles} ciclos completos de lavado de ropa.`
         },
         {
             appliance: 'AIRE ACONDICIONADO',
-            icon: '💨',
+            icon: '•',
             description: `Equivale a ${acHours} horas de aire acondicionado (12.000 BTU) a toda potencia.`
         },
         {
             appliance: 'CARGAS DE SMARTPHONE',
-            icon: '📱',
+            icon: '•',
             description: `Permite cargar completamente un telefono movil unas ${phoneCharges.toLocaleString()} veces.`
         },
         {
             appliance: 'SMART TV 55 PULGADAS',
-            icon: '📺',
+            icon: '•',
             description: `Mantiene encendido un televisor LED durante unas ${tvHours.toLocaleString()} horas de transmision.`
         }
     ];

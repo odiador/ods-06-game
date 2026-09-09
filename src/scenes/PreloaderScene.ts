@@ -99,14 +99,6 @@ export class PreloaderScene extends Scene {
     }
 
     create(): void {
-        if (typeof document !== 'undefined' && document.fonts) {
-            document.fonts.ready.then(() => {
-                this.scene.start('MenuScene');
-            }).catch(() => {
-                this.scene.start('MenuScene');
-            });
-        } else {
-            this.scene.start('MenuScene');
-        }
+        this.scene.start('MenuScene');
     }
 }

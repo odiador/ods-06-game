@@ -146,32 +146,36 @@ export class WinScene extends Scene {
         const comp1 = comparisons[0]; // Fridge
         const comp2 = comparisons[2]; // AC or Washer
 
-        this.add.text(cardX + 16, appCardY + 38, `${comp1.icon} ${comp1.appliance}:`, {
+        this.add.text(cardX + 16, appCardY + 38, `• ${comp1.appliance}:`, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: '#0F172A',
+            resolution: 2
         });
 
         this.add.text(cardX + 16, appCardY + 54, comp1.description, {
-            fontSize: '11px',
-            fontFamily: "'Silkscreen', monospace",
+            fontSize: '13px',
+            fontFamily: "'Outfit', sans-serif",
             color: '#475569',
-            lineSpacing: 4,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
+            lineSpacing: 3,
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+            resolution: 2
         });
 
-        this.add.text(cardX + 16, appCardY + 95, `${comp2.icon} ${comp2.appliance}:`, {
+        this.add.text(cardX + 16, appCardY + 95, `• ${comp2.appliance}:`, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: '#0F172A',
+            resolution: 2
         });
 
         this.add.text(cardX + 16, appCardY + 111, comp2.description, {
-            fontSize: '11px',
-            fontFamily: "'Silkscreen', monospace",
+            fontSize: '13px',
+            fontFamily: "'Outfit', sans-serif",
             color: '#475569',
-            lineSpacing: 4,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
+            lineSpacing: 3,
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+            resolution: 2
         });
 
         // ── 6. Card 3: Leccion Rotativa ODS 7 ──
@@ -210,15 +214,17 @@ export class WinScene extends Scene {
         this.lessonTitleText = this.add.text(cardX + 16, lessonCardY + 38, initialLesson.title, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: '#0F172A',
+            resolution: 2
         });
 
         this.lessonBodyText = this.add.text(cardX + 16, lessonCardY + 56, initialLesson.text, {
-            fontSize: '11px',
-            fontFamily: "'Silkscreen', monospace",
+            fontSize: '13px',
+            fontFamily: "'Outfit', sans-serif",
             color: '#475569',
-            lineSpacing: 6,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
+            lineSpacing: 4,
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+            resolution: 2
         });
 
         // ── 7. Primary Action: REINTENTAR MODO ACTUAL ──

@@ -173,7 +173,7 @@ export class MenuScene extends Scene {
         this.startBtnHitZone.on('pointerdown', () => this.launchActiveMode());
 
         // Controls Hint
-        this.add.text(width / 2, 615, 'CONTROLES: ⬅ ➡ o A / D · CLIC Y ARRASTRA', {
+        this.add.text(width / 2, 615, 'CONTROLES: [ < ] [ > ] O TECLAS [ A ] [ D ] · RATON O TACTIL', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'

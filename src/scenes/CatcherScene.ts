@@ -183,10 +183,11 @@ export class CatcherScene extends Scene {
         }).setOrigin(1, 0).setDepth(101);
         this.hudGroup.add(lbl2);
 
-        this.livesText = this.add.text(width - 20, 28, '❤❤❤❤❤', {
-            fontSize: '13px',
+        this.livesText = this.add.text(width - 20, 28, '■ ■ ■ ■ ■', {
+            fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#DC2626'
+            color: '#DC2626',
+            resolution: 2
         }).setOrigin(1, 0).setDepth(101);
         this.hudGroup.add(this.livesText);
 
@@ -362,8 +363,8 @@ export class CatcherScene extends Scene {
         this.scoreText.setText(`${this.kwh} / ${this.targetKwh} kWh`);
         this.comboText.setText(`COMBO: ${this.multiplier}x (${this.combo} seguidos)`);
 
-        const hearts = '❤'.repeat(Math.max(0, this.lives)) || 'AGOTADA';
-        this.livesText.setText(hearts);
+        const pips = '■ '.repeat(Math.max(0, this.lives)).trim() || 'CRITICO';
+        this.livesText.setText(pips);
         this.renderProgressBar(this.scale.width);
     }
 

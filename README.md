@@ -1,4 +1,4 @@
-# ODS 7 - Red Eléctrica Inteligente y Sostenible ⚡
+# ODS 7 - Red Eléctrica Inteligente y Sostenible
 
 Juego arcade 2D en **Pixel Art** desarrollado con **Phaser 3.90.0**, **TypeScript** y **Vite**, enfocado en el **Objetivo de Desarrollo Sostenible 7 (Energía Asequible y No Contaminante)** y el rol de la ingeniería de sistemas en la transición energética global.
 
