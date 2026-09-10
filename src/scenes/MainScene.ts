@@ -4,7 +4,7 @@ import { WindGlider } from '../gameobjects/WindGlider';
 import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
-import { MAIN_CIRCUIT, SingleCircuitConfig } from '../types/game';
+import { TOURNAMENT_ROUNDS, TournamentRoundConfig } from '../types/game';
 import { InitialGuideModal } from '../ui/InitialGuideModal';
 import { networkManager, RemotePlayerInfo } from '../systems/NetworkManager';
 
@@ -29,8 +29,11 @@ export class MainScene extends Scene {
     private keyD?: Phaser.Input.Keyboard.Key;
     private touchSteer: number = 0;
 
-    // Single unified circuit configuration
-    private currentCircuit: SingleCircuitConfig = MAIN_CIRCUIT;
+    // Tournament configuration
+    private round: number = 1;
+    private currentCircuit: TournamentRoundConfig = TOURNAMENT_ROUNDS[1];
+    private totalTournamentPlayers: number = 50;
+    private qualifiedCutoff: number = 25;
 
     // Track layers
     private trackTile!: Phaser.GameObjects.TileSprite;
@@ -74,7 +77,9 @@ export class MainScene extends Scene {
         super('MainScene');
     }
 
-    init(data?: { skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number }): void {
+    init(data?: { round?: number; skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number }): void {
+        this.round = data?.round && TOURNAMENT_ROUNDS[data.round] ? data.round : 1;
+        this.currentCircuit = TOURNAMENT_ROUNDS[this.round];
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = false;
@@ -90,6 +95,13 @@ export class MainScene extends Scene {
         this.countdownContainer = undefined;
         this.countdownTimer = undefined;
         this.idleGliderTween = undefined;
+
+        if (this.isMultiplayer) {
+            this.totalTournamentPlayers = networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 50;
+        } else {
+            this.totalTournamentPlayers = this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6;
+        }
+        this.qualifiedCutoff = this.round === 4 ? 3 : Math.ceil(this.totalTournamentPlayers * (this.currentCircuit.qualifyCutoffPct || 0.5));
         (window as any).__gameActive = false;
     }
 
@@ -98,9 +110,14 @@ export class MainScene extends Scene {
         this.raceStartTime = this.time.now;
         SoundFX.unlock();
 
-        // Ensure clean HUD lifecycle
+        // Ensure clean HUD lifecycle with current round info
         this.scene.stop('HudScene');
-        this.scene.launch('HudScene', { targetDistance: this.targetDistance });
+        this.scene.launch('HudScene', {
+            targetDistance: this.targetDistance,
+            round: this.round,
+            circuitName: this.currentCircuit.name,
+            cutoffDescription: this.currentCircuit.cutoffDescription
+        });
 
         // ── 1. Track & Borders ──
         this.leftBorderTile = this.add.tileSprite(24, height / 2, 48, height, this.currentCircuit.borderKey).setDepth(1);
@@ -109,20 +126,36 @@ export class MainScene extends Scene {
         // Center smooth aerodynamic racing lane
         this.trackTile = this.add.tileSprite(width / 2, height / 2, width - 96, height, this.currentCircuit.trackKey).setDepth(2);
 
-        // Roadside environmental wind turbines
+        // Roadside environmental decorations based on current biome
+        this.sideDecorations = [];
+        const decoType = this.currentCircuit.sideDecoration;
         for (let i = 0; i < 4; i++) {
             const leftY = 120 + i * 240;
             const rightY = 40 + i * 240;
 
-            const leftTower = this.add.sprite(22, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
-            const leftBlades = this.add.sprite(22, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
-            const rightTower = this.add.sprite(width - 22, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
-            const rightBlades = this.add.sprite(width - 22, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
-
-            this.sideDecorations.push(
-                { main: leftTower, extra: leftBlades },
-                { main: rightTower, extra: rightBlades }
-            );
+            if (decoType === 'turbines') {
+                const leftTower = this.add.sprite(22, leftY, 'turbine_tower').setScale(1.5).setDepth(3);
+                const leftBlades = this.add.sprite(22, leftY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+                const rightTower = this.add.sprite(width - 22, rightY, 'turbine_tower').setScale(1.5).setDepth(3);
+                const rightBlades = this.add.sprite(width - 22, rightY - 14, 'turbine_blades').setScale(1.5).setDepth(4);
+                this.sideDecorations.push(
+                    { main: leftTower, extra: leftBlades },
+                    { main: rightTower, extra: rightBlades }
+                );
+            } else if (decoType === 'solar_towers') {
+                const leftTower = this.add.sprite(22, leftY, 'solar_tower').setScale(1.5).setDepth(3);
+                const rightTower = this.add.sprite(width - 22, rightY, 'solar_tower').setScale(1.5).setDepth(3);
+                this.sideDecorations.push({ main: leftTower }, { main: rightTower });
+            } else if (decoType === 'hydro_pylons') {
+                const leftTower = this.add.sprite(22, leftY, 'hydro_pylon').setScale(1.5).setDepth(3);
+                const rightTower = this.add.sprite(width - 22, rightY, 'hydro_pylon').setScale(1.5).setDepth(3);
+                this.sideDecorations.push({ main: leftTower }, { main: rightTower });
+            } else {
+                // grid_towers
+                const leftTower = this.add.sprite(22, leftY, 'grid_tower').setScale(1.5).setDepth(3);
+                const rightTower = this.add.sprite(width - 22, rightY, 'grid_tower').setScale(1.5).setDepth(3);
+                this.sideDecorations.push({ main: leftTower }, { main: rightTower });
+            }
         }
 
         // ── 2. Glider / Speeder ──
@@ -532,7 +565,7 @@ export class MainScene extends Scene {
         this.cameras.main.flash(180, 2, 132, 199, false);
 
         EventBus.emit(GameEvents.SCORE_UPDATED, this.cleanKwh);
-        this.showPopup(this.glider.x, this.glider.y - 40, '+50 KM/H TURBO', '#0284C7');
+        this.showPopup(this.glider.x, this.glider.y - 40, this.currentCircuit.turboPopup, this.currentCircuit.themeColor);
     }
 
     private handleObstacleHit(
@@ -600,27 +633,61 @@ export class MainScene extends Scene {
             networkManager.finishRace(totalTimeMs, this.cleanKwh);
         }
 
-        let finalRank = networkManager.myFinishRank;
-        if (!finalRank && this.isMultiplayer) {
-            const finishedCount = networkManager.roomPlayers.filter(p => p.finished).length;
-            finalRank = finishedCount + 1;
+        let finalRank = 1;
+        if (this.isMultiplayer) {
+            finalRank = networkManager.myFinishRank;
+            if (!finalRank) {
+                const finishedCount = networkManager.roomPlayers.filter(p => p.finished).length;
+                finalRank = finishedCount + 1;
+            }
+        } else {
+            // Solo tournament rank simulation based on performance:
+            const timeSec = totalTimeMs / 1000;
+            if (timeSec < 42 && this.cleanKwh >= 35) {
+                finalRank = 1;
+            } else if (timeSec < 47) {
+                finalRank = Phaser.Math.Between(2, Math.min(3, this.qualifiedCutoff));
+            } else if (timeSec < 53) {
+                finalRank = Phaser.Math.Between(4, Math.min(8, this.qualifiedCutoff));
+            } else if (timeSec < 60) {
+                finalRank = Phaser.Math.Between(9, this.qualifiedCutoff);
+            } else if (timeSec < 68) {
+                finalRank = Phaser.Math.Between(this.qualifiedCutoff + 1, Math.min(this.qualifiedCutoff + 5, this.totalTournamentPlayers));
+            } else {
+                finalRank = Phaser.Math.Between(this.qualifiedCutoff + 4, this.totalTournamentPlayers);
+            }
         }
 
-        const podiumData = networkManager.roomPodium.length > 0
+        let podiumData = networkManager.roomPodium.length > 0
             ? networkManager.roomPodium
             : undefined;
+
+        if (!podiumData && !this.isMultiplayer) {
+            const rivalPool = ['Aero-1', 'Solaris', 'Hydro-X', 'Volt-9', 'TerraPulse'];
+            const r1 = finalRank === 1 ? 'TÚ' : rivalPool[0];
+            const r2 = finalRank === 2 ? 'TÚ' : rivalPool[1];
+            const r3 = finalRank === 3 ? 'TÚ' : rivalPool[2];
+            const baseTime = Number(totalTimeSeconds);
+
+            podiumData = [
+                { rank: 1, playerId: 'p1', finishTimeMs: Math.round(Number(totalTimeSeconds) * 1000), name: r1, timeSec: finalRank === 1 ? totalTimeSeconds : (Math.max(37, baseTime - 1.5)).toFixed(1) },
+                { rank: 2, playerId: 'p2', finishTimeMs: Math.round((Number(totalTimeSeconds) + 0.9) * 1000), name: r2, timeSec: finalRank === 2 ? totalTimeSeconds : (finalRank === 1 ? (baseTime + 0.9).toFixed(1) : (baseTime - 0.5).toFixed(1)) },
+                { rank: 3, playerId: 'p3', finishTimeMs: Math.round((Number(totalTimeSeconds) + 2.1) * 1000), name: r3, timeSec: finalRank === 3 ? totalTimeSeconds : (finalRank <= 2 ? (baseTime + 2.1).toFixed(1) : (baseTime + 0.8).toFixed(1)) }
+            ];
+        }
 
         this.scene.stop('HudScene');
         this.cameras.main.fadeOut(250, 241, 245, 249);
         this.time.delayedCall(250, () => {
             this.scene.start('WinScene', {
                 mode: 'race',
+                round: this.round,
                 time: totalTimeSeconds,
                 kwh: this.cleanKwh,
                 distance: this.targetDistance,
                 multiplayer: this.isMultiplayer,
                 rank: finalRank || 1,
-                totalPlayers: networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 1,
+                totalPlayers: this.totalTournamentPlayers,
                 podium: podiumData
             });
         });

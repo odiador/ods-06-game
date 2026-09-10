@@ -32,6 +32,7 @@ export interface PlayerPublicInfo {
 export interface Room {
     code: string;
     status: 'lobby' | 'countdown' | 'racing' | 'finished';
+    currentRound: number;
     players: Map<string, Player>;
     createdAt: number;
 }
@@ -191,9 +192,22 @@ export class RoomManager {
                 const room = this.rooms.get(roomCode);
                 if (!room) return;
 
+                const round = Number(msg.round) || room.currentRound || 1;
+                room.currentRound = round;
                 room.status = 'countdown';
+
+                // Reset player race stats for the round
+                for (const player of room.players.values()) {
+                    player.finished = false;
+                    player.finishTimeMs = 0;
+                    player.distance = 0;
+                    player.speed = 45;
+                    player.rank = 0;
+                }
+
                 this.broadcast(roomCode, {
                     type: 'RACE_COUNTDOWN',
+                    round,
                     countdownSeconds: 3,
                 });
 
@@ -203,6 +217,7 @@ export class RoomManager {
                         room.status = 'racing';
                         this.broadcast(roomCode, {
                             type: 'RACE_STARTED',
+                            round,
                         });
                     }
                 }, 3000);
@@ -307,6 +322,7 @@ export class RoomManager {
             room = {
                 code,
                 status: 'lobby',
+                currentRound: 1,
                 players: new Map(),
                 createdAt: Date.now(),
             };

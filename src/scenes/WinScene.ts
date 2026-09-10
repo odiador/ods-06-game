@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { GameModeId, getApplianceEquivalence, ROTATING_LESSONS, ApplianceComparison } from '../types/game';
+import { GameModeId, ROTATING_LESSONS, TOURNAMENT_ROUNDS } from '../types/game';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 
@@ -14,6 +14,7 @@ export interface PodiumEntry {
 
 interface WinSceneData {
     mode?: GameModeId;
+    round?: number;
     time: string;
     kwh: number;
     distance?: number;
@@ -24,14 +25,16 @@ interface WinSceneData {
 }
 
 export class WinScene extends Scene {
-    private mode: GameModeId = 'race';
+    private round: number = 1;
+    private isQualified: boolean = false;
+    private cutoffRank: number = 25;
     private finalTime: string = '0.0';
     private finalKwh: number = 0;
     private finalCo2: number = 0;
     private currentLessonIdx: number = 0;
     private isMultiplayer: boolean = false;
     private rank: number = 1;
-    private totalPlayers: number = 1;
+    private totalPlayers: number = 50;
     private podium: PodiumEntry[] = [];
 
     private lessonTitleText!: Phaser.GameObjects.Text;
@@ -53,15 +56,23 @@ export class WinScene extends Scene {
     }
 
     init(data: WinSceneData): void {
-        this.mode = data.mode || 'race';
+        this.round = data.round || 1;
         this.finalTime = data.time || '45.0';
         this.finalKwh = Math.max(1, data.kwh || 120);
         this.finalCo2 = Math.round(this.finalKwh * 0.45);
         this.isMultiplayer = data.multiplayer === true;
         this.rank = data.rank || 1;
-        this.totalPlayers = data.totalPlayers || 1;
+        this.totalPlayers = data.totalPlayers || (this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6);
         this.podium = data.podium || [];
         this.currentLessonIdx = Phaser.Math.Between(0, ROTATING_LESSONS.length - 1);
+
+        if (this.round < 4) {
+            this.cutoffRank = Math.ceil(this.totalPlayers * 0.5);
+            this.isQualified = this.rank <= this.cutoffRank;
+        } else {
+            this.cutoffRank = 3;
+            this.isQualified = true;
+        }
     }
 
     create(): void {
@@ -74,64 +85,89 @@ export class WinScene extends Scene {
         bg.fillRect(0, 0, width, height);
 
         // ── 2. Top Header Banner ──
-        const bannerY = 36;
+        const bannerY = 32;
         const bannerW = width - 48;
         const bannerX = 24;
 
         const banner = this.add.graphics();
-        banner.fillStyle(0xDCFCE7, 1);
-        banner.fillRect(bannerX, bannerY, bannerW, 36);
-        banner.lineStyle(1, 0x16A34A, 1);
-        banner.strokeRect(bannerX, bannerY, bannerW, 36);
-
-        let bannerTitle = this.mode === 'race'
-            ? '¡CARRERA META 2030 COMPLETADA!'
-            : '¡RESERVA BESS 2030 CARGADA!';
-
+        let bannerBgColor = 0xDCFCE7;
+        let bannerBorderColor = 0x16A34A;
+        let bannerTitle = '';
         let bannerColor = '#15803D';
-        if (this.isMultiplayer) {
+
+        if (this.round < 4) {
+            if (this.isQualified) {
+                bannerTitle = `¡CLASIFICASTE A RONDA ${this.round + 1}! (${this.rank}° DE ${this.totalPlayers})`;
+                bannerColor = '#15803D';
+                bannerBgColor = 0xDCFCE7;
+                bannerBorderColor = 0x16A34A;
+            } else {
+                bannerTitle = `ELIMINADO EN RONDA ${this.round} (${this.rank}° DE ${this.totalPlayers})`;
+                bannerColor = '#DC2626';
+                bannerBgColor = 0xFEE2E2;
+                bannerBorderColor = 0xEF4444;
+            }
+        } else {
             if (this.rank === 1) {
-                bannerTitle = `¡CAMPEON ORO! 1° LUGAR DE ${this.totalPlayers}`;
+                bannerTitle = `¡CAMPEON ORO 2030! 1° LUGAR DE ${this.totalPlayers}`;
                 bannerColor = '#B45309';
+                bannerBgColor = 0xFEF3C7;
+                bannerBorderColor = 0xF59E0B;
             } else if (this.rank === 2) {
                 bannerTitle = `¡SUBCAMPEON PLATA! 2° LUGAR DE ${this.totalPlayers}`;
                 bannerColor = '#475569';
+                bannerBgColor = 0xF1F5F9;
+                bannerBorderColor = 0x94A3B8;
             } else if (this.rank === 3) {
                 bannerTitle = `¡PODIO BRONCE! 3° LUGAR DE ${this.totalPlayers}`;
                 bannerColor = '#B45309';
+                bannerBgColor = 0xFFEDD5;
+                bannerBorderColor = 0xF97316;
             } else {
-                bannerTitle = `¡FINALIZASTE! PUESTO ${this.rank}° DE ${this.totalPlayers}`;
+                bannerTitle = `¡FINALISTA TOP 6 DE LA RED 2030!`;
                 bannerColor = '#0284C7';
+                bannerBgColor = 0xE0F2FE;
+                bannerBorderColor = 0x0284C7;
             }
         }
 
+        banner.fillStyle(bannerBgColor, 1);
+        banner.fillRect(bannerX, bannerY, bannerW, 36);
+        banner.lineStyle(1, bannerBorderColor, 1);
+        banner.strokeRect(bannerX, bannerY, bannerW, 36);
+
         this.bannerTextObj = this.add.text(width / 2, bannerY + 18, bannerTitle, {
-            fontSize: '9px',
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: bannerColor,
             resolution: 3
         }).setOrigin(0.5);
 
-        // ── 3. Animated Mode Trophy / Mascot ──
-        const spriteKey = this.mode === 'race' ? 'wind_glider' : 'battery';
-        const trophy = this.add.sprite(width / 2, 108, spriteKey).setScale(2.4);
-        if (this.isMultiplayer && this.rank === 1) {
+        // ── 3. Animated Trophy / Vehicle Mascot ──
+        const currentRoundCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
+        const nextRoundCfg = this.round < 4 ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
+        const spriteKey = (this.isQualified && nextRoundCfg) ? nextRoundCfg.vehicleKey : currentRoundCfg.vehicleKey;
+
+        const trophy = this.add.sprite(width / 2, 106, spriteKey).setScale(2.4);
+        if (this.round === 4 && this.rank === 1) {
             trophy.setTint(0xF59E0B);
         }
         this.tweens.add({
             targets: trophy,
-            y: 100,
+            y: 98,
             duration: 900,
             yoyo: true,
             repeat: -1,
             ease: 'Sine.easeInOut'
         });
 
-        const subTitle = this.isMultiplayer
-            ? `SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`
-            : (this.mode === 'race' ? 'CIRCUITO RED RENOVABLE 2030' : 'SISTEMA DE BATERIAS Y ESTABILIDAD');
+        const subTitle = this.round < 4
+            ? (this.isQualified
+                ? `¡PREPARATE PARA ${nextRoundCfg?.name || 'LA SIGUIENTE RONDA'}!`
+                : `RONDA ${this.round}/4 · ${currentRoundCfg.name}`)
+            : `GRAN FINAL 2030 · ${currentRoundCfg.name}`;
 
-        this.subTitleText = this.add.text(width / 2, 142, subTitle, {
+        this.subTitleText = this.add.text(width / 2, 138, subTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0284C7',
@@ -149,33 +185,44 @@ export class WinScene extends Scene {
         const cardX = 24;
         const cardW = width - 48;
 
-        if (this.isMultiplayer) {
+        if (this.round === 4 || this.isMultiplayer) {
             this.createMultiplayerCards(cardX, cardW);
         } else {
             this.createSinglePlayerCards(cardX, cardW);
         }
 
-        // ── 7. Primary Action: REINTENTAR MODO ACTUAL ──
-        const btnY = 700;
-        const btnW = 260;
+        // ── 7. Primary Action Button ──
+        const btnY = 698;
+        const btnW = 280;
         const btnH = 46;
         const btnX = width / 2 - btnW / 2;
 
         const btnBg = this.add.graphics();
         const renderBtn = (hover: boolean): void => {
             btnBg.clear();
-            btnBg.fillStyle(hover ? 0xFBBF24 : 0xF59E0B, 1);
+            const fillC = this.isQualified && this.round < 4 ? (hover ? 0x22C55E : 0x16A34A) : (hover ? 0xFBBF24 : 0xF59E0B);
+            const edgeC = this.isQualified && this.round < 4 ? 0x15803D : 0xB45309;
+            btnBg.fillStyle(fillC, 1);
             btnBg.fillRect(btnX, btnY, btnW, btnH);
-            btnBg.fillStyle(0xB45309, 1);
+            btnBg.fillStyle(edgeC, 1);
             btnBg.fillRect(btnX, btnY + btnH - 3, btnW, 3);
         };
         renderBtn(false);
 
-        const restartLabel = this.mode === 'race' ? 'CORRER OTRA VEZ' : 'VOLVER A ATRAPAR';
+        let restartLabel = '';
+        if (this.round < 4 && this.isQualified) {
+            const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
+            restartLabel = `AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`;
+        } else if (this.round < 4) {
+            restartLabel = 'REINTENTAR TORNEO (R1)';
+        } else {
+            restartLabel = 'NUEVO TORNEO (DESDE R1)';
+        }
+
         this.add.text(width / 2, btnY + btnH / 2 - 1, restartLabel, {
-            fontSize: '10px',
+            fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A'
+            color: this.isQualified && this.round < 4 ? '#FFFFFF' : '#0F172A'
         }).setOrigin(0.5);
 
         const hitZone = this.add.zone(width / 2, btnY + btnH / 2, btnW, btnH)
@@ -186,10 +233,18 @@ export class WinScene extends Scene {
             hitZone.disableInteractive();
             this.cameras.main.fadeOut(180, 241, 245, 249);
             this.time.delayedCall(180, () => {
-                if (this.mode === 'race') {
-                    this.scene.start('MainScene');
+                if (this.round < 4 && this.isQualified) {
+                    this.scene.start('MainScene', {
+                        round: this.round + 1,
+                        multiplayer: this.isMultiplayer,
+                        skipGuide: true
+                    });
                 } else {
-                    this.scene.start('CatcherScene');
+                    this.scene.start('MainScene', {
+                        round: 1,
+                        multiplayer: this.isMultiplayer,
+                        skipGuide: true
+                    });
                 }
             });
         };
@@ -199,8 +254,8 @@ export class WinScene extends Scene {
         hitZone.on('pointerdown', triggerRestart);
 
         // ── 8. Secondary Action: MENU PRINCIPAL ──
-        const menuBtnY = 760;
-        const menuBtnH = 40;
+        const menuBtnY = 756;
+        const menuBtnH = 38;
         const menuBtnX = width / 2 - btnW / 2;
 
         const menuBg = this.add.graphics();
@@ -258,7 +313,8 @@ export class WinScene extends Scene {
         pCard.lineStyle(1.5, 0xF59E0B, 1);
         pCard.strokeRect(cardX, podiumCardY, cardW, podiumCardH);
 
-        this.add.text(cardX + 16, podiumCardY + 12, `PODIO DE SALA (TOP 3)`, {
+        const cardTitle = this.round === 4 ? 'PODIO FINAL DE CAMPEONATO (TOP 3)' : 'PODIO DE SALA (TOP 3)';
+        this.add.text(cardX + 16, podiumCardY + 12, cardTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#B45309',
@@ -348,31 +404,37 @@ export class WinScene extends Scene {
         card.lineStyle(1, 0xCBD5E1, 1);
         card.strokeRect(cardX, cardY, cardW, cardH);
 
-        this.add.text(cardX + 16, cardY + 14, 'TELEMETRIA ODS 7 DE CARRERA', {
+        this.add.text(cardX + 16, cardY + 14, `TELEMETRIA TORNEO · RONDA ${this.round}/4`, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B',
             resolution: 3
         });
 
+        const statusStr = this.round === 4
+            ? (this.rank <= 3 ? '¡PODIO FINAL!' : 'FINALISTA')
+            : (this.isQualified ? '¡CLASIFICADO!' : 'ELIMINADO');
+        const statusCol = this.isQualified ? '#16A34A' : '#DC2626';
+
         const stats = [
             { label: 'POSICION', val: `${this.rank}° / ${this.totalPlayers}`, color: '#0284C7' },
+            { label: 'ESTADO', val: statusStr, color: statusCol },
             { label: 'TIEMPO', val: `${this.finalTime} s`, color: '#0F172A' },
             { label: 'ENERGIA LIMPIA', val: `${this.finalKwh} kWh`, color: '#D97706' },
             { label: 'CO2 EVITADO', val: `~${this.finalCo2} kg`, color: '#16A34A' }
         ];
 
         stats.forEach((row, i) => {
-            const yPos = cardY + 38 + i * 26;
+            const yPos = cardY + 34 + i * 22;
             this.add.text(cardX + 16, yPos, row.label, {
-                fontSize: '9px',
+                fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: '#64748B',
                 resolution: 3
             });
 
             const valText = this.add.text(cardX + cardW - 16, yPos, row.val, {
-                fontSize: '10px',
+                fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: row.color,
                 resolution: 3
@@ -435,7 +497,10 @@ export class WinScene extends Scene {
     }
 
     private createSinglePlayerCards(cardX: number, cardW: number): void {
-        // ── Card 1: Telemetria de Produccion ──
+        const currentCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
+        const nextCfg = this.round < 4 ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
+
+        // ── Card 1: Telemetria y Estado del Torneo ──
         const cardY = 168;
         const cardH = 150;
 
@@ -445,96 +510,158 @@ export class WinScene extends Scene {
         card.lineStyle(1, 0xCBD5E1, 1);
         card.strokeRect(cardX, cardY, cardW, cardH);
 
-        this.add.text(cardX + 16, cardY + 14, 'BALANCE ENERGETICO ODS 7', {
+        this.add.text(cardX + 16, cardY + 14, `BALANCE RONDA ${this.round}/4 · ${currentCfg.name}`, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B',
             resolution: 3
         });
 
+        const statusLabel = this.round === 4
+            ? (this.rank <= 3 ? '¡PODIO FINAL!' : 'FINALISTA')
+            : (this.isQualified ? '¡CLASIFICADO!' : 'ELIMINADO');
+        const statusColor = this.isQualified ? '#16A34A' : '#DC2626';
+
         const stats = [
+            { label: 'POSICION', val: `${this.rank}° / ${this.totalPlayers}`, color: '#0284C7' },
+            { label: 'ESTADO', val: statusLabel, color: statusColor },
             { label: 'TIEMPO', val: `${this.finalTime} s`, color: '#0F172A' },
             { label: 'ENERGIA LIMPIA', val: `${this.finalKwh} kWh`, color: '#D97706' },
-            { label: 'CO2 EVITADO', val: `~${this.finalCo2} kg`, color: '#16A34A' },
-            { label: 'MODO', val: this.mode === 'race' ? 'CARRERA' : 'ATRAPA-BESS', color: '#0284C7' }
+            { label: 'CO2 EVITADO', val: `~${this.finalCo2} kg`, color: '#16A34A' }
         ];
 
         stats.forEach((row, i) => {
-            const yPos = cardY + 38 + i * 26;
+            const yPos = cardY + 34 + i * 22;
             this.add.text(cardX + 16, yPos, row.label, {
-                fontSize: '9px',
+                fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: '#64748B',
                 resolution: 3
             });
 
             this.add.text(cardX + cardW - 16, yPos, row.val, {
-                fontSize: '10px',
+                fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: row.color,
                 resolution: 3
             }).setOrigin(1, 0);
         });
 
-        // ── Card 2: Equivalencia con Electrodomesticos Reales ──
-        const appCardY = 332;
-        const appCardH = 155;
+        // ── Card 2: Siguiente Etapa o Desafio ──
+        const nextCardY = 328;
+        const nextCardH = 158;
 
-        const appCard = this.add.graphics();
-        appCard.fillStyle(0xFFFFFF, 1);
-        appCard.fillRect(cardX, appCardY, cardW, appCardH);
-        appCard.lineStyle(1, 0xCBD5E1, 1);
-        appCard.strokeRect(cardX, appCardY, cardW, appCardH);
+        const nextCard = this.add.graphics();
+        nextCard.fillStyle(0xFFFFFF, 1);
+        nextCard.fillRect(cardX, nextCardY, cardW, nextCardH);
+        nextCard.lineStyle(1, 0xCBD5E1, 1);
+        nextCard.strokeRect(cardX, nextCardY, cardW, nextCardH);
 
-        this.add.text(cardX + 16, appCardY + 14, 'EQUIVALENCIA CON ELECTRODOMESTICOS', {
-            fontSize: '8px',
-            fontFamily: "'Press Start 2P', monospace",
-            color: '#B45309',
-            resolution: 3
-        });
+        if (this.round < 4 && this.isQualified && nextCfg) {
+            this.add.text(cardX + 16, nextCardY + 14, `PROXIMA ETAPA: ${nextCfg.stageName}`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#15803D',
+                resolution: 3
+            });
 
-        const divider1 = this.add.graphics();
-        divider1.fillStyle(0xE2E8F0, 1);
-        divider1.fillRect(cardX + 16, appCardY + 28, cardW - 32, 1);
+            const divider1 = this.add.graphics();
+            divider1.fillStyle(0xE2E8F0, 1);
+            divider1.fillRect(cardX + 16, nextCardY + 28, cardW - 32, 1);
 
-        const comparisons: ApplianceComparison[] = getApplianceEquivalence(this.finalKwh);
-        const comp1 = comparisons[0];
-        const comp2 = comparisons[2];
+            this.add.text(cardX + 16, nextCardY + 38, `• CIRCUITO: ${nextCfg.name}`, {
+                fontSize: '9px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#0F172A',
+                resolution: 3
+            });
 
-        this.add.text(cardX + 16, appCardY + 38, `• ${comp1.appliance}:`, {
-            fontSize: '9px',
-            fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A',
-            resolution: 3
-        });
+            this.add.text(cardX + 16, nextCardY + 54, nextCfg.description, {
+                fontSize: '12px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#475569',
+                lineSpacing: 3,
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
 
-        this.add.text(cardX + 16, appCardY + 54, comp1.description, {
-            fontSize: '13px',
-            fontFamily: "'Outfit', sans-serif",
-            color: '#475569',
-            lineSpacing: 3,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-            resolution: 3
-        });
+            this.add.text(cardX + 16, nextCardY + 98, `• REGLA DE CORTE:`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#D97706',
+                resolution: 3
+            });
 
-        this.add.text(cardX + 16, appCardY + 95, `• ${comp2.appliance}:`, {
-            fontSize: '9px',
-            fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A',
-            resolution: 3
-        });
+            this.add.text(cardX + 16, nextCardY + 114, nextCfg.cutoffDescription || 'Clasifica el top 50%', {
+                fontSize: '12px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#334155',
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
+        } else if (this.round < 4) {
+            this.add.text(cardX + 16, nextCardY + 14, `CORTE ELIMINATORIO ODS 7`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#DC2626',
+                resolution: 3
+            });
 
-        this.add.text(cardX + 16, appCardY + 111, comp2.description, {
-            fontSize: '13px',
-            fontFamily: "'Outfit', sans-serif",
-            color: '#475569',
-            lineSpacing: 3,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-            resolution: 3
-        });
+            const divider1 = this.add.graphics();
+            divider1.fillStyle(0xE2E8F0, 1);
+            divider1.fillRect(cardX + 16, nextCardY + 28, cardW - 32, 1);
+
+            this.add.text(cardX + 16, nextCardY + 42, `En este Gran Premio ODS 7, solo clasifica el 50% más veloz en cada circuito.`, {
+                fontSize: '12px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#475569',
+                lineSpacing: 4,
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
+
+            this.add.text(cardX + 16, nextCardY + 95, `Tu posición fue ${this.rank}°, pero el corte era el puesto ${this.cutoffRank}°. ¡Aprovecha mejor los turbos y evita trompos!`, {
+                fontSize: '12px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#0F172A',
+                lineSpacing: 4,
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
+        } else {
+            this.add.text(cardX + 16, nextCardY + 14, `GRAN PREMIO ODS 7 CULMINADO`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#B45309',
+                resolution: 3
+            });
+
+            const divider1 = this.add.graphics();
+            divider1.fillStyle(0xE2E8F0, 1);
+            divider1.fillRect(cardX + 16, nextCardY + 28, cardW - 32, 1);
+
+            this.add.text(cardX + 16, nextCardY + 42, `¡Completaste las 4 etapas del torneo por la transición energética limpia 2030!`, {
+                fontSize: '13px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#15803D',
+                fontStyle: 'bold',
+                lineSpacing: 4,
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
+
+            this.add.text(cardX + 16, nextCardY + 90, `Superaste Eólica, Solar, Hidroeléctrica y la Red Inteligente. ¡Eres pionero de la energía sostenible!`, {
+                fontSize: '12px',
+                fontFamily: "'Outfit', sans-serif",
+                color: '#475569',
+                lineSpacing: 4,
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
+                resolution: 3
+            });
+        }
 
         // ── Card 3: Leccion Rotativa ODS 7 ──
-        const lessonCardY = 502;
+        const lessonCardY = 498;
         const lessonCardH = 175;
 
         const lessonCard = this.add.graphics();

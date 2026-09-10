@@ -98,8 +98,13 @@ export const ROTATING_LESSONS = [
     }
 ];
 
+export type BiomeId = 'wind' | 'solar' | 'hydro' | 'grid';
+
 export interface SingleCircuitConfig {
+    round?: number;
+    id?: BiomeId;
     name: string;
+    stageName?: string;
     subtitle: string;
     description: string;
     themeColor: string;
@@ -110,26 +115,110 @@ export interface SingleCircuitConfig {
     turboKey: string;
     obstacleKeys: string[];
     batteryKey: string;
-    sideDecoration: 'turbines' | 'solar_towers' | 'hydro_pylons';
+    sideDecoration: 'turbines' | 'solar_towers' | 'hydro_pylons' | 'grid_towers';
     energyLabel: string;
     turboPopup: string;
     co2Factor: number;
+    cutoffDescription?: string;
+    targetDistance?: number;
+    qualifyCutoffPct?: number;
 }
 
-export const MAIN_CIRCUIT: SingleCircuitConfig = {
-    name: 'RED RENOVABLE 2030',
-    subtitle: 'ODS 7 · CIRCUITO INTEGRADO',
-    description: 'Circuito limpio con aerogeneradores, paneles solares y turbos de viento.',
-    themeColor: '#0284C7',
-    themeColorHex: 0x0284C7,
-    vehicleKey: 'wind_glider',
-    trackKey: 'canyon_track',
-    borderKey: 'grass_border',
-    turboKey: 'wind_gust',
-    obstacleKeys: ['track_rock', 'track_log'],
-    batteryKey: 'battery',
-    sideDecoration: 'turbines',
-    energyLabel: 'ENERGIA LIMPIA',
-    turboPopup: '¡TURBO +50 km/h!',
-    co2Factor: 0.45
+export type TournamentRoundConfig = SingleCircuitConfig;
+
+export const TOURNAMENT_ROUNDS: Record<number, TournamentRoundConfig> = {
+    1: {
+        round: 1,
+        id: 'wind',
+        name: 'COLINAS EOLICAS',
+        stageName: 'ETAPA 1: CLASIFICATORIA',
+        subtitle: 'ODS 7 · ENERGIA EOLICA',
+        description: 'Vientos rapidos, aerogeneradores rotativos y rafagas dinamicas.',
+        themeColor: '#0284C7',
+        themeColorHex: 0x0284C7,
+        vehicleKey: 'wind_glider',
+        trackKey: 'canyon_track',
+        borderKey: 'grass_border',
+        turboKey: 'wind_gust',
+        obstacleKeys: ['track_rock', 'track_log'],
+        batteryKey: 'battery',
+        sideDecoration: 'turbines',
+        energyLabel: 'ENERGIA EOLICA',
+        turboPopup: '¡TURBO EOLICO +50 km/h!',
+        co2Factor: 0.42,
+        cutoffDescription: 'CLASIFICA EL TOP 50% (MAX 25 PILOTOS)',
+        targetDistance: 2030,
+        qualifyCutoffPct: 0.5
+    },
+    2: {
+        round: 2,
+        id: 'solar',
+        name: 'VALLE SOLAR',
+        stageName: 'ETAPA 2: CUARTOS DE FINAL',
+        subtitle: 'ODS 7 · ENERGIA FOTOVOLTAICA',
+        description: 'Radiacion termosolar, paneles fotovoltaicos y sobrecargas de energia.',
+        themeColor: '#D97706',
+        themeColorHex: 0xD97706,
+        vehicleKey: 'solar_speeder',
+        trackKey: 'solar_track',
+        borderKey: 'solar_border',
+        turboKey: 'solar_flare',
+        obstacleKeys: ['solar_dust', 'track_rock'],
+        batteryKey: 'solar',
+        sideDecoration: 'solar_towers',
+        energyLabel: 'ENERGIA SOLAR',
+        turboPopup: '¡PULSO SOLAR +50 km/h!',
+        co2Factor: 0.48,
+        cutoffDescription: 'CLASIFICA EL TOP 50% (MAX 12 PILOTOS)',
+        targetDistance: 2030,
+        qualifyCutoffPct: 0.5
+    },
+    3: {
+        round: 3,
+        id: 'hydro',
+        name: 'RAPIDOS HIDROELECTRICOS',
+        stageName: 'ETAPA 3: SEMIFINAL',
+        subtitle: 'ODS 7 · ENERGIA HIDRAULICA',
+        description: 'Canales de alta pendiente, pilones de control y corrientes turbinadas.',
+        themeColor: '#0284C7',
+        themeColorHex: 0x0284C7,
+        vehicleKey: 'hydro_foil',
+        trackKey: 'hydro_track',
+        borderKey: 'hydro_border',
+        turboKey: 'hydro_current',
+        obstacleKeys: ['hydro_vortex', 'track_log'],
+        batteryKey: 'hydro',
+        sideDecoration: 'hydro_pylons',
+        energyLabel: 'ENERGIA HIDRICA',
+        turboPopup: '¡SURGE HIDRICO +50 km/h!',
+        co2Factor: 0.52,
+        cutoffDescription: 'CLASIFICA EL TOP 50% (MAX 6 FINALISTAS)',
+        targetDistance: 2030,
+        qualifyCutoffPct: 0.5
+    },
+    4: {
+        round: 4,
+        id: 'grid',
+        name: 'RED INTELIGENTE 2030',
+        stageName: 'ETAPA 4: GRAN FINAL',
+        subtitle: 'ODS 7 · BESS Y RED DE ALTA RESILIENCIA',
+        description: 'Superconductores, almacenamiento masivo BESS y carrera por el podio de oro.',
+        themeColor: '#10B981',
+        themeColorHex: 0x10B981,
+        vehicleKey: 'grid_speeder',
+        trackKey: 'grid_track',
+        borderKey: 'grid_border',
+        turboKey: 'grid_surge',
+        obstacleKeys: ['grid_overload', 'track_rock'],
+        batteryKey: 'battery',
+        sideDecoration: 'grid_towers',
+        energyLabel: 'RED INTELIGENTE',
+        turboPopup: '¡HIPER-IMPULSO BESS +50 km/h!',
+        co2Factor: 0.55,
+        cutoffDescription: '¡GRAN FINAL POR EL PODIO (TOP 3)!',
+        targetDistance: 2030,
+        qualifyCutoffPct: 1.0
+    }
 };
+
+export const MAIN_CIRCUIT: SingleCircuitConfig = TOURNAMENT_ROUNDS[1];

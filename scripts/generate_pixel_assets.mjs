@@ -1021,6 +1021,98 @@ function drawHydroPylon(x, y) {
     return TRANSPARENT;
 }
 
+// ── 38. SMART GRID TRACK (64x64) ──
+function drawGridTrack(x, y) {
+    let r = 11, g = 19, b = 43; // #0B132B deep cyber slate
+    const noise = (x * 7 + y * 13) % 9;
+    if (noise === 0) { r += 2; g += 2; b += 4; }
+
+    // Cyber energy conduit lines
+    if (x === 16 || x === 48) {
+        if (y % 16 < 8) { r = 2, g = 132, b = 199; } // #0284C7
+    }
+
+    // Center laser dashed guideline
+    if ((x === 31 || x === 32) && (y % 16 < 8)) {
+        r = 56; g = 189; b = 248; // #38BDF8
+    }
+
+    return [r, g, b, 255];
+}
+
+// ── 39. SMART GRID BORDER (32x32) ──
+function drawGridBorder(x, y) {
+    let base = '#0F172A';
+    if (x <= 6) base = '#020617';
+    else if (x >= 26) base = '#1E293B';
+
+    if (x === 16 && y % 8 < 4) return hexToRgba('#0284C7');
+    if (x === 17 && y % 8 < 4) return hexToRgba('#38BDF8');
+
+    return hexToRgba(base);
+}
+
+// ── 40. SMART GRID SPEEDER (32x32) ──
+function drawGridSpeeder(x, y) {
+    const dx = Math.abs(x - 15.5);
+    // Sleek triangle hyper-car
+    if (y >= 8 && y <= 28) {
+        const span = (y - 8) * 0.55;
+        if (dx <= span) {
+            if (dx <= 1.5 && y >= 14 && y <= 22) return hexToRgba('#00E5FF'); // Neon core
+            if (dx >= span - 1.2) return hexToRgba('#38BDF8'); // Edge glow
+            if (y >= 10 && y <= 16) return hexToRgba('#0F172A'); // Cockpit
+            return hexToRgba('#0284C7'); // Main hull
+        }
+    }
+    // Rear twin ion thrusters
+    if (y >= 29 && y <= 31 && (dx >= 4 && dx <= 7)) {
+        return hexToRgba('#F59E0B');
+    }
+    return TRANSPARENT;
+}
+
+// ── 41. SMART GRID SUBSTATION TOWER (32x32) ──
+function drawGridTower(x, y) {
+    // High-tech distribution pylon
+    if (y >= 10 && y <= 31 && x >= 13 && x <= 18) {
+        if (x === 13 || x === 18) return hexToRgba('#38BDF8');
+        return hexToRgba('#0F172A');
+    }
+    // Top quantum sensor
+    if (y >= 4 && y <= 9 && x >= 12 && x <= 19) {
+        return hexToRgba('#10B981');
+    }
+    return TRANSPARENT;
+}
+
+// ── 42. SMART GRID SURGE BOOST (48x32) ──
+function drawGridSurge(x, y) {
+    const chevrons = [14, 26, 38];
+    for (const cx of chevrons) {
+        const dist = Math.abs(x - cx);
+        const targetY = 16 - dist * 0.8;
+        if (Math.abs(y - targetY) <= 2.2 && dist <= 9) {
+            if (Math.abs(y - targetY) <= 1.0) return hexToRgba('#FFFFFF');
+            return hexToRgba('#38BDF8', 230);
+        }
+    }
+    return TRANSPARENT;
+}
+
+// ── 43. SMART GRID OVERLOAD HAZARD (32x32) ──
+function drawGridOverload(x, y) {
+    const dx = x - 15.5;
+    const dy = y - 15.5;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 11) {
+        if (dist <= 3) return hexToRgba('#FFFFFF');
+        if (dist <= 7) return hexToRgba('#EF4444', 220);
+        return hexToRgba('#F97316', 150);
+    }
+    return TRANSPARENT;
+}
+
 // Ensure output directories exist
 const assetsDir = path.resolve('public/assets');
 const itemsDir = path.join(assetsDir, 'items');
@@ -1085,6 +1177,14 @@ const assetsToGenerate = [
     { file: path.join(trackDir, 'hydro_current.png'), width: 48, height: 32, fn: drawHydroCurrent },
     { file: path.join(trackDir, 'hydro_vortex.png'), size: 32, fn: drawHydroVortex },
     { file: path.join(trackDir, 'hydro_pylon.png'), size: 32, fn: drawHydroPylon },
+
+    // ── Bioma 4: Gran Final Red Inteligente 2030 ──
+    { file: path.join(trackDir, 'grid_track.png'), size: 64, fn: drawGridTrack },
+    { file: path.join(trackDir, 'grid_border.png'), size: 32, fn: drawGridBorder },
+    { file: path.join(trackDir, 'grid_speeder.png'), size: 32, fn: drawGridSpeeder },
+    { file: path.join(trackDir, 'grid_tower.png'), size: 32, fn: drawGridTower },
+    { file: path.join(trackDir, 'grid_surge.png'), width: 48, height: 32, fn: drawGridSurge },
+    { file: path.join(trackDir, 'grid_overload.png'), size: 32, fn: drawGridOverload },
 ];
 
 for (const item of assetsToGenerate) {

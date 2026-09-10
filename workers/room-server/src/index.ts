@@ -57,7 +57,7 @@ export type RoomStatus = 'lobby' | 'countdown' | 'racing' | 'finished';
 
 export type ClientMessage =
     | { type: 'JOIN_ROOM'; roomCode?: string; playerName?: string }
-    | { type: 'START_RACE'; roomCode?: string }
+    | { type: 'START_RACE'; roomCode?: string; round?: number }
     | { type: 'PLAYER_UPDATE'; roomCode?: string; playerId?: string; x?: number; distance?: number; speed?: number }
     | { type: 'FINISH_RACE'; roomCode?: string; playerId?: string; timeMs?: number; kwh?: number }
     | { type: 'LEAVE_ROOM' };
@@ -72,16 +72,17 @@ export interface PodiumEntry {
 }
 
 export type ServerMessage =
-    | { type: 'ROOM_JOINED'; playerId: string; roomCode: string; isHost: boolean; players: PlayerData[]; status: RoomStatus }
-    | { type: 'ROOM_UPDATE'; roomCode?: string; players: PlayerData[]; status: RoomStatus; leftPlayerId?: string }
+    | { type: 'ROOM_JOINED'; playerId: string; roomCode: string; isHost: boolean; players: PlayerData[]; status: RoomStatus; round?: number }
+    | { type: 'ROOM_UPDATE'; roomCode?: string; players: PlayerData[]; status: RoomStatus; leftPlayerId?: string; round?: number }
     | { type: 'ROOM_ERROR'; message: string }
-    | { type: 'RACE_COUNTDOWN'; countdownSeconds: number }
-    | { type: 'RACE_STARTED' }
+    | { type: 'RACE_COUNTDOWN'; countdownSeconds: number; round?: number }
+    | { type: 'RACE_STARTED'; round?: number }
     | { type: 'PLAYERS_STATE'; players: PlayerData[] }
     | { type: 'PLAYER_FINISHED'; playerId: string; name: string; rank: number; finishTimeMs: number; kwh: number; podium?: PodiumEntry[]; totalPlayers?: number };
 
 export class RoomDurableObject extends DurableObject {
     private roomStatus: RoomStatus = 'lobby';
+    private currentRound: number = 1;
 
     constructor(ctx: DurableObjectState, env: Env) {
         super(ctx, env);
@@ -189,10 +190,28 @@ export class RoomDurableObject extends DurableObject {
                 }
 
                 case 'START_RACE': {
+                    const round = Number(msg.round) || this.currentRound || 1;
+                    this.currentRound = round;
                     this.roomStatus = 'countdown';
+
+                    // Reset player race stats for the round
+                    const sockets = this.ctx.getWebSockets();
+                    for (const s of sockets) {
+                        const p = s.deserializeAttachment() as PlayerData | null;
+                        if (p) {
+                            p.finished = false;
+                            p.finishTimeMs = 0;
+                            p.distance = 0;
+                            p.speed = 45;
+                            p.rank = 0;
+                            s.serializeAttachment(p);
+                        }
+                    }
+
                     this.broadcast({
                         type: 'RACE_COUNTDOWN',
                         countdownSeconds: 3,
+                        round,
                     });
 
                     // Countdown timer
@@ -200,6 +219,7 @@ export class RoomDurableObject extends DurableObject {
                         this.roomStatus = 'racing';
                         this.broadcast({
                             type: 'RACE_STARTED',
+                            round,
                         });
                     }, 3000);
                     break;

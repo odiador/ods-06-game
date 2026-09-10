@@ -1,6 +1,6 @@
 import { Physics, Scene } from 'phaser';
 
-export type ObstacleType = 'track_rock' | 'track_log' | 'solar_dust' | 'hydro_vortex';
+export type ObstacleType = 'track_rock' | 'track_log' | 'solar_dust' | 'hydro_vortex' | 'grid_overload';
 
 export class TrackObstacle extends Physics.Arcade.Sprite {
     public obstacleType: ObstacleType;
@@ -21,7 +21,7 @@ export class TrackObstacle extends Physics.Arcade.Sprite {
         if (type === 'track_log') {
             body.setSize(44, 20);
             body.setOffset(2, 2);
-        } else if (type === 'solar_dust' || type === 'hydro_vortex') {
+        } else if (type === 'solar_dust' || type === 'hydro_vortex' || type === 'grid_overload') {
             body.setSize(28, 28);
             body.setOffset(2, 2);
         } else {

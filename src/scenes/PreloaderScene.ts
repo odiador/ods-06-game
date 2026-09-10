@@ -96,6 +96,14 @@ export class PreloaderScene extends Scene {
         this.load.image('hydro_current', 'assets/track/hydro_current.png');
         this.load.image('hydro_vortex', 'assets/track/hydro_vortex.png');
         this.load.image('hydro_pylon', 'assets/track/hydro_pylon.png');
+
+        // Bioma 4: Gran Final Red Inteligente 2030 Assets
+        this.load.image('grid_speeder', 'assets/track/grid_speeder.png');
+        this.load.image('grid_track', 'assets/track/grid_track.png');
+        this.load.image('grid_border', 'assets/track/grid_border.png');
+        this.load.image('grid_surge', 'assets/track/grid_surge.png');
+        this.load.image('grid_overload', 'assets/track/grid_overload.png');
+        this.load.image('grid_tower', 'assets/track/grid_tower.png');
     }
 
     create(): void {

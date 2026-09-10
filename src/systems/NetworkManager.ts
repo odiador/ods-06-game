@@ -187,11 +187,12 @@ export class NetworkManager {
         return true;
     }
 
-    public startRace(): void {
+    public startRace(round: number = 1): void {
         if (!this.isMultiplayerActive() || !this.roomCode) return;
         this.send({
             type: 'START_RACE',
             roomCode: this.roomCode,
+            round,
         });
     }
 

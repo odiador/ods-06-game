@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 
 test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
-    test('loads Light Mode menu with single circuit race and switches between game modes', async ({ page }) => {
+    test('loads Light Mode menu with 4 tournament stages and previews biomes', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
@@ -17,22 +17,33 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         expect(box).not.toBeNull();
 
         if (box) {
-            // Mode 2 Tab: ATRAPA-ENERGIA (around 73% width, 11.6% height)
-            const catcherTabX = box.x + box.width * 0.73;
-            const modeTabY = box.y + box.height * (112 / 960);
-            await page.mouse.click(catcherTabX, modeTabY);
-            await page.waitForTimeout(500);
+            const tabY = box.y + box.height * (106 / 960);
 
-            // Screenshot Menu Scene with Catcher Mode selected
-            const screenshotDir = path.resolve('screenshots');
-            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-catcher.png') });
-
-            // Switch back to Mode 1 Tab: CARRERA (around 27% width)
-            const raceTabX = box.x + box.width * 0.27;
-            await page.mouse.click(raceTabX, modeTabY);
+            // Click Stage Tab 2: R2 SOLAR (around 38% width)
+            const solarTabX = box.x + box.width * 0.38;
+            await page.mouse.click(solarTabX, tabY);
             await page.waitForTimeout(400);
 
-            // Screenshot Menu Scene with Race Mode selected
+            // Click Stage Tab 3: R3 HIDRO (around 62% width)
+            const hydroTabX = box.x + box.width * 0.62;
+            await page.mouse.click(hydroTabX, tabY);
+            await page.waitForTimeout(400);
+
+            // Click Stage Tab 4: R4 FINAL (around 86% width)
+            const finalTabX = box.x + box.width * 0.86;
+            await page.mouse.click(finalTabX, tabY);
+            await page.waitForTimeout(400);
+
+            // Screenshot Menu Scene with Final Stage selected
+            const screenshotDir = path.resolve('screenshots');
+            await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-stage-final.png') });
+
+            // Switch back to Stage Tab 1: R1 EOLICA (around 15% width)
+            const eolicaTabX = box.x + box.width * 0.15;
+            await page.mouse.click(eolicaTabX, tabY);
+            await page.waitForTimeout(400);
+
+            // Screenshot Menu Scene with Eolica Stage selected
             await page.screenshot({ path: path.join(screenshotDir, 'e2e-menu-scene.png') });
         }
 
@@ -207,7 +218,7 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('switches to Energy Catcher mode with 5 lives, displays guide and catches clean energy', async ({ page }) => {
+    test('runs 4-stage eliminatory Grand Prix tournament advancing from Round 1 to Round 4', async ({ page }) => {
         const errors: string[] = [];
         page.on('pageerror', (err) => errors.push(err.message));
 
@@ -216,57 +227,133 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         await expect(canvas).toBeVisible({ timeout: 10000 });
         await page.waitForTimeout(1000);
 
-        const box = await canvas.boundingBox();
-        expect(box).not.toBeNull();
-
-        if (box) {
-            // Click Mode 2 tab: ATRAPA-ENERGIA - around 73% width, 11.6% height
-            const modeTabY = box.y + box.height * (112 / 960);
-            const catcherTabX = box.x + box.width * 0.73;
-            await page.mouse.click(catcherTabX, modeTabY);
-            await page.waitForTimeout(400);
-
-            // Click JUGAR ATRAPA-ENERGIA (58.2% down)
-            const clickX = box.x + box.width / 2;
-            const clickY = box.y + box.height * (559 / 960);
-            await page.mouse.click(clickX, clickY);
-        }
-
-        // Wait for CatcherScene initial guide and dismiss it
+        // 1. Start Round 1 (Colinas Eólicas)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MenuScene');
+                game.scene.start('MainScene', { round: 1, skipGuide: true });
+            }
+        });
         await page.waitForTimeout(600);
-        await page.keyboard.press('Space');
-        await page.waitForTimeout(400);
 
-        // Verify CatcherScene is active
+        // Verify Round 1 is active
+        const round1Active = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('MainScene') as any;
+            return scene ? scene.round === 1 : false;
+        });
+        expect(round1Active).toBe(true);
+
+        // 2. Finish Round 1 with qualifying rank (top 50%)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MainScene');
+                game.scene.start('WinScene', {
+                    round: 1,
+                    rank: 12,
+                    totalPlayers: 50,
+                    time: '44.2',
+                    kwh: 120
+                });
+            }
+        });
+        await page.waitForTimeout(600);
+
+        // Verify WinScene shows qualified status
+        const isQualifiedR1 = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const win = game?.scene.getScene('WinScene') as any;
+            return win ? win.isQualified === true : false;
+        });
+        expect(isQualifiedR1).toBe(true);
+
+        // Advance to Round 2 (Valle Solar)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('WinScene');
+                game.scene.start('MainScene', { round: 2, skipGuide: true });
+            }
+        });
+        await page.waitForTimeout(600);
+
+        const round2Active = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('MainScene') as any;
+            return scene ? scene.round === 2 : false;
+        });
+        expect(round2Active).toBe(true);
+
+        // 3. Advance to Round 3 (Rápidos Hidroeléctricos)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MainScene');
+                game.scene.start('MainScene', { round: 3, skipGuide: true });
+            }
+        });
+        await page.waitForTimeout(600);
+
+        const round3Active = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('MainScene') as any;
+            return scene ? scene.round === 3 : false;
+        });
+        expect(round3Active).toBe(true);
+
+        // 4. Advance to Round 4 (Gran Final Red Inteligente 2030)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MainScene');
+                game.scene.start('MainScene', { round: 4, skipGuide: true });
+            }
+        });
+        await page.waitForTimeout(600);
+
+        const round4Active = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('MainScene') as any;
+            return scene ? scene.round === 4 : false;
+        });
+        expect(round4Active).toBe(true);
+
+        // Finish Round 4 on 1st place podium
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MainScene');
+                game.scene.start('WinScene', {
+                    round: 4,
+                    rank: 1,
+                    totalPlayers: 6,
+                    time: '41.8',
+                    kwh: 180
+                });
+            }
+        });
+        await page.waitForTimeout(800);
+
+        const screenshotDir = path.resolve('screenshots');
+        await page.screenshot({ path: path.join(screenshotDir, 'e2e-tournament-grand-final.png') });
+
+        // Standalone CatcherScene verification (kept functional in codebase)
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('WinScene');
+                game.scene.start('CatcherScene');
+            }
+        });
+        await page.waitForTimeout(600);
+
         const isCatcherActive = await page.evaluate(() => {
             const game = (window as any).__phaserGame;
             return game ? game.scene.isActive('CatcherScene') : false;
         });
         expect(isCatcherActive).toBe(true);
-
-        // Play using A/D and arrow keys
-        await page.keyboard.press('KeyA');
-        await page.waitForTimeout(200);
-        await page.keyboard.press('KeyD');
-        await page.waitForTimeout(200);
-        await page.keyboard.press('ArrowLeft');
-        await page.waitForTimeout(200);
-        await page.keyboard.press('ArrowRight');
-        await page.waitForTimeout(200);
-
-        // Move technician with mouse
-        if (box) {
-            await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.85);
-            await page.waitForTimeout(300);
-            await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.85);
-            await page.waitForTimeout(300);
-        }
-
-        await page.waitForTimeout(1500);
-
-        // Screenshot Catcher mode gameplay
-        const screenshotDir = path.resolve('screenshots');
-        await page.screenshot({ path: path.join(screenshotDir, 'e2e-catcher-gameplay.png') });
 
         expect(errors).toHaveLength(0);
     });

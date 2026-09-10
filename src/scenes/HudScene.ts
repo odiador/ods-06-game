@@ -8,16 +8,21 @@ export class HudScene extends Scene {
     private energyText!: Phaser.GameObjects.Text;
     private trackBarGfx!: Phaser.GameObjects.Graphics;
     private racerDot!: Phaser.GameObjects.Graphics;
-    private muteIcon!: Phaser.GameObjects.Sprite;
 
     private targetDistance: number = 2030;
+    private round: number = 1;
+    private circuitName: string = 'COLINAS EOLICAS';
+    private cutoffDescription: string = 'CLASIFICAN TOP 50%';
 
     constructor() {
         super('HudScene');
     }
 
-    init(data: { targetDistance?: number }): void {
+    init(data: { targetDistance?: number; round?: number; circuitName?: string; cutoffDescription?: string }): void {
         this.targetDistance = data.targetDistance || 2030;
+        this.round = data.round || 1;
+        this.circuitName = data.circuitName || 'COLINAS EOLICAS';
+        this.cutoffDescription = data.cutoffDescription || 'CLASIFICAN TOP 50%';
     }
 
     create(): void {
@@ -31,41 +36,54 @@ export class HudScene extends Scene {
         panel.fillRect(0, 87, width, 1);
 
         // Speedometer (Top Left)
-        this.add.text(22, 14, 'VELOCIDAD', {
-            fontSize: '8px',
+        this.add.text(20, 12, 'VELOCIDAD', {
+            fontSize: '7px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
         });
 
-        this.speedText = this.add.text(22, 28, '45 km/h', {
-            fontSize: '12px',
+        this.speedText = this.add.text(20, 25, '45 km/h', {
+            fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0284C7'
         });
 
-        // Audio Mute Icon (Center Top)
-        const soundKey = SoundFX.getMuted() ? 'sound_off' : 'sound_on';
-        this.muteIcon = this.add.sprite(width / 2, 30, soundKey)
-            .setScale(1.3)
-            .setInteractive({ useHandCursor: true });
+        // Round & Qualification Cutoff (Center Top)
+        this.add.text(width / 2, 12, `RONDA ${this.round}/4 · ${this.circuitName}`, {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#0F172A'
+        }).setOrigin(0.5, 0);
 
-        this.muteIcon.on('pointerdown', () => {
-            const muted = SoundFX.toggleMute();
-            this.muteIcon.setTexture(muted ? 'sound_off' : 'sound_on');
-        });
+        this.add.text(width / 2, 26, this.cutoffDescription, {
+            fontSize: '7px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#059669'
+        }).setOrigin(0.5, 0);
 
         // Energy Harvested (Top Right)
-        this.add.text(width - 22, 14, 'ENERGIA LIMPIA', {
-            fontSize: '8px',
+        this.add.text(width - 20, 12, 'ENERGIA', {
+            fontSize: '7px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
         }).setOrigin(1, 0);
 
-        this.energyText = this.add.text(width - 22, 28, '0 kWh', {
-            fontSize: '12px',
+        this.energyText = this.add.text(width - 20, 25, '0 kWh', {
+            fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#D97706'
         }).setOrigin(1, 0);
+
+        // Audio Mute Icon (Right edge beside energy)
+        const soundKey = SoundFX.getMuted() ? 'sound_off' : 'sound_on';
+        const muteIcon = this.add.sprite(width - 86, 20, soundKey)
+            .setScale(1.1)
+            .setInteractive({ useHandCursor: true });
+
+        muteIcon.on('pointerdown', () => {
+            const muted = SoundFX.toggleMute();
+            muteIcon.setTexture(muted ? 'sound_off' : 'sound_on');
+        });
 
         // Track Distance & Linear Race Bar (Bottom of HUD)
         this.distanceText = this.add.text(22, 52, `META 2030: 0m / ${this.targetDistance}m`, {

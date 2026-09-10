@@ -1,16 +1,12 @@
 import { Scene } from 'phaser';
-import { GameModeId, MAIN_CIRCUIT } from '../types/game';
+import { TOURNAMENT_ROUNDS, TournamentRoundConfig } from '../types/game';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { networkManager } from '../systems/NetworkManager';
 
 export class MenuScene extends Scene {
-    private currentMode: GameModeId = 'race';
-
-    // UI elements
-    private modeTabRaceGfx!: Phaser.GameObjects.Graphics;
-    private modeTabRaceText!: Phaser.GameObjects.Text;
-    private modeTabCatcherGfx!: Phaser.GameObjects.Graphics;
-    private modeTabCatcherText!: Phaser.GameObjects.Text;
+    // Stage preview tabs
+    private stageTabGfx: Phaser.GameObjects.Graphics[] = [];
+    private stageTabTexts: Phaser.GameObjects.Text[] = [];
 
     private modeTitleText!: Phaser.GameObjects.Text;
     private modeSubtitleText!: Phaser.GameObjects.Text;
@@ -18,12 +14,10 @@ export class MenuScene extends Scene {
     private itemSprite!: Phaser.GameObjects.Sprite;
     private instructionsText!: Phaser.GameObjects.Text;
 
-    private startBtnText!: Phaser.GameObjects.Text;
     private startBtnBg!: Phaser.GameObjects.Graphics;
     private startBtnHitZone!: Phaser.GameObjects.Zone;
 
     private multiBtnBg!: Phaser.GameObjects.Graphics;
-    private multiBtnText!: Phaser.GameObjects.Text;
     private multiBtnHitZone!: Phaser.GameObjects.Zone;
 
     // Multiplayer Modal state
@@ -66,58 +60,66 @@ export class MenuScene extends Scene {
         // ── 2. Top Header Badge ──
         const badgeBg = this.add.graphics();
         badgeBg.fillStyle(0xFEF3C7, 1);
-        badgeBg.fillRect(width / 2 - 140, 24, 280, 24);
+        badgeBg.fillRect(width / 2 - 150, 20, 300, 22);
         badgeBg.lineStyle(1, 0xF59E0B, 1);
-        badgeBg.strokeRect(width / 2 - 140, 24, 280, 24);
+        badgeBg.strokeRect(width / 2 - 150, 20, 300, 22);
 
-        this.add.text(width / 2, 36, 'ODS 7 · ENERGIA LIMPIA Y ASEQUIBLE', {
+        this.add.text(width / 2, 31, 'ODS 7 · ENERGIA LIMPIA Y ASEQUIBLE', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#B45309'
         }).setOrigin(0.5);
 
         // Game Title
-        this.add.text(width / 2, 58, 'RED RENOVABLE', {
-            fontSize: '18px',
+        this.add.text(width / 2, 50, 'GRAN PREMIO ODS 7', {
+            fontSize: '17px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A',
             align: 'center'
         }).setOrigin(0.5, 0);
 
-        // ── 3. Mode Switcher (2 Distinct Games) ──
-        const modeTabY = 96;
-        const modeTabW = (width - 48) / 2;
-
-        this.modeTabRaceGfx = this.add.graphics();
-        this.modeTabCatcherGfx = this.add.graphics();
-
-        this.modeTabRaceText = this.add.text(24 + modeTabW / 2, modeTabY + 16, '1. CARRERA', {
-            fontSize: '9px',
+        this.add.text(width / 2, 74, 'TORNEO ELIMINATORIO DE 4 RONDAS (50 PILOTOS)', {
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#FFFFFF'
-        }).setOrigin(0.5);
+            color: '#0284C7',
+            align: 'center'
+        }).setOrigin(0.5, 0);
 
-        this.modeTabCatcherText = this.add.text(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, '2. ATRAPA-ENERGIA', {
-            fontSize: '9px',
-            fontFamily: "'Press Start 2P', monospace",
-            color: '#64748B'
-        }).setOrigin(0.5);
+        // ── 3. 4 Stage Selector Tabs ──
+        const stageTabY = 92;
+        const totalW = width - 48;
+        const tabGap = 4;
+        const stageTabW = (totalW - tabGap * 3) / 4;
+        const tabLabels = ['R1: EOLICA', 'R2: SOLAR', 'R3: HIDRO', 'R4: FINAL'];
 
-        const raceHit = this.add.zone(24 + modeTabW / 2, modeTabY + 16, modeTabW, 32)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true });
-        raceHit.on('pointerdown', () => this.switchGameMode('race'));
+        this.stageTabGfx = [];
+        this.stageTabTexts = [];
 
-        const catcherHit = this.add.zone(24 + modeTabW + 4 + modeTabW / 2, modeTabY + 16, modeTabW, 32)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true });
-        catcherHit.on('pointerdown', () => this.switchGameMode('catcher'));
+        for (let i = 1; i <= 4; i++) {
+            const tabX = 24 + (i - 1) * (stageTabW + tabGap);
+            const gfx = this.add.graphics();
+            const txt = this.add.text(tabX + stageTabW / 2, stageTabY + 14, tabLabels[i - 1], {
+                fontSize: '7px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: i === 1 ? '#FFFFFF' : '#64748B'
+            }).setOrigin(0.5);
 
-        // ── 4. Mode Details Card ──
+            const hitZone = this.add.zone(tabX + stageTabW / 2, stageTabY + 14, stageTabW, 28)
+                .setOrigin(0.5)
+                .setInteractive({ useHandCursor: true });
+
+            const roundNum = i;
+            hitZone.on('pointerdown', () => this.selectStagePreview(roundNum));
+
+            this.stageTabGfx.push(gfx);
+            this.stageTabTexts.push(txt);
+        }
+
+        // ── 4. Stage Details Card ──
         const cardX = 24;
         const cardW = width - 48;
-        const cardY = 145;
-        const cardH = 345;
+        const cardY = 130;
+        const cardH = 360;
 
         const infoCard = this.add.graphics();
         infoCard.fillStyle(0xFFFFFF, 1);
@@ -139,7 +141,7 @@ export class MenuScene extends Scene {
         }).setOrigin(0.5);
 
         // Animated Showcase Sprites
-        const showcaseY = cardY + 110;
+        const showcaseY = cardY + 115;
         this.itemSprite = this.add.sprite(width / 2, showcaseY + 18, 'wind_gust').setScale(1.8).setAlpha(0.85);
         this.mascotSprite = this.add.sprite(width / 2, showcaseY, 'wind_glider').setScale(2.8);
 
@@ -154,26 +156,26 @@ export class MenuScene extends Scene {
         });
 
         // Instructions
-        this.instructionsText = this.add.text(width / 2, cardY + 235, '', {
+        this.instructionsText = this.add.text(width / 2, cardY + 245, '', {
             fontSize: '11px',
             fontFamily: "'Outfit', sans-serif",
             color: '#334155',
             align: 'center',
-            lineSpacing: 6,
+            lineSpacing: 5,
             wordWrap: { width: cardW - 32, useAdvancedWrap: true }
         }).setOrigin(0.5);
 
         // ── 5. Primary Start Button ──
-        const btnY = 535;
-        const btnW = 280;
+        const btnY = 525;
+        const btnW = 300;
         const btnH = 48;
         const btnX = width / 2 - btnW / 2;
 
         this.startBtnBg = this.add.graphics();
         this.renderStartBtn(false, btnX, btnY, btnW, btnH);
 
-        this.startBtnText = this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR CARRERA (SOLO)', {
-            fontSize: '10px',
+        this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR TORNEO (SOLO · R1)', {
+            fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
@@ -184,15 +186,15 @@ export class MenuScene extends Scene {
 
         this.startBtnHitZone.on('pointerover', () => this.renderStartBtn(true, btnX, btnY, btnW, btnH));
         this.startBtnHitZone.on('pointerout', () => this.renderStartBtn(false, btnX, btnY, btnW, btnH));
-        this.startBtnHitZone.on('pointerdown', () => this.launchActiveMode());
+        this.startBtnHitZone.on('pointerdown', () => this.launchTournamentSolo());
 
         // ── 6. Multiplayer Room Button ──
-        const multiBtnY = 595;
+        const multiBtnY = 585;
         const multiBtnH = 42;
         this.multiBtnBg = this.add.graphics();
         this.renderMultiBtn(false, btnX, multiBtnY, btnW, multiBtnH);
 
-        this.multiBtnText = this.add.text(width / 2, multiBtnY + multiBtnH / 2 - 1, 'SALA MULTIJUGADOR (CLAVE)', {
+        this.add.text(width / 2, multiBtnY + multiBtnH / 2 - 1, 'SALA MULTIJUGADOR (50 PILOTOS)', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF'
@@ -207,14 +209,14 @@ export class MenuScene extends Scene {
         this.multiBtnHitZone.on('pointerdown', () => this.openMultiplayerModal());
 
         // Controls Hint
-        this.add.text(width / 2, 654, 'CONTROLES: [ < ] [ > ] O TECLAS [ A ] [ D ] · RATON O TACTIL', {
+        this.add.text(width / 2, 650, 'CONTROLES: [ < ] [ > ] O TECLAS [ A ] [ D ] · RATON O TACTIL', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
         }).setOrigin(0.5);
 
-        // Initial view
-        this.switchGameMode('race');
+        // Initial preview
+        this.selectStagePreview(1);
 
         // Check for ?room= URL parameter for instant testing
         const params = new URLSearchParams(window.location.search);
@@ -245,106 +247,59 @@ export class MenuScene extends Scene {
         this.multiBtnBg.fillRect(x + 2, y + h - 6, w - 4, 4);
     }
 
-    private switchGameMode(mode: GameModeId): void {
-        this.currentMode = mode;
+    private selectStagePreview(round: number): void {
         const { width } = this.scale;
-        const modeTabY = 96;
-        const modeTabW = (width - 48) / 2;
+        const stageTabY = 92;
+        const totalW = width - 48;
+        const tabGap = 4;
+        const stageTabW = (totalW - tabGap * 3) / 4;
 
-        // Render Mode 1 Tab (Race)
-        this.modeTabRaceGfx.clear();
-        if (mode === 'race') {
-            this.modeTabRaceGfx.fillStyle(0x0284C7, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 32);
-            this.modeTabRaceGfx.fillStyle(0x0369A1, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY + 29, modeTabW, 3);
-            this.modeTabRaceText.setColor('#FFFFFF');
-        } else {
-            this.modeTabRaceGfx.fillStyle(0xFFFFFF, 1);
-            this.modeTabRaceGfx.fillRect(24, modeTabY, modeTabW, 32);
-            this.modeTabRaceGfx.lineStyle(1, 0xCBD5E1, 1);
-            this.modeTabRaceGfx.strokeRect(24, modeTabY, modeTabW, 32);
-            this.modeTabRaceText.setColor('#64748B');
+        for (let i = 1; i <= 4; i++) {
+            const gfx = this.stageTabGfx[i - 1];
+            const txt = this.stageTabTexts[i - 1];
+            const tabX = 24 + (i - 1) * (stageTabW + tabGap);
+
+            gfx.clear();
+            if (i === round) {
+                const roundCfg = TOURNAMENT_ROUNDS[i];
+                gfx.fillStyle(roundCfg.themeColorHex, 1);
+                gfx.fillRect(tabX, stageTabY, stageTabW, 28);
+                gfx.fillStyle(0x0F172A, 0.4);
+                gfx.fillRect(tabX, stageTabY + 25, stageTabW, 3);
+                txt.setColor('#FFFFFF');
+            } else {
+                gfx.fillStyle(0xFFFFFF, 1);
+                gfx.fillRect(tabX, stageTabY, stageTabW, 28);
+                gfx.lineStyle(1, 0xCBD5E1, 1);
+                gfx.strokeRect(tabX, stageTabY, stageTabW, 28);
+                txt.setColor('#64748B');
+            }
         }
 
-        // Render Mode 2 Tab (Catcher)
-        this.modeTabCatcherGfx.clear();
-        const catcherX = 24 + modeTabW + 4;
-        if (mode === 'catcher') {
-            this.modeTabCatcherGfx.fillStyle(0x16A34A, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 32);
-            this.modeTabCatcherGfx.fillStyle(0x15803D, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY + 29, modeTabW, 3);
-            this.modeTabCatcherText.setColor('#FFFFFF');
-        } else {
-            this.modeTabCatcherGfx.fillStyle(0xFFFFFF, 1);
-            this.modeTabCatcherGfx.fillRect(catcherX, modeTabY, modeTabW, 32);
-            this.modeTabCatcherGfx.lineStyle(1, 0xCBD5E1, 1);
-            this.modeTabCatcherGfx.strokeRect(catcherX, modeTabY, modeTabW, 32);
-            this.modeTabCatcherText.setColor('#64748B');
-        }
+        const config: TournamentRoundConfig = TOURNAMENT_ROUNDS[round] || TOURNAMENT_ROUNDS[1];
+        this.modeTitleText.setText(config.name);
+        this.modeTitleText.setColor(config.themeColor);
+        this.modeSubtitleText.setText(`${config.stageName} · ${config.subtitle}`);
 
-        if (mode === 'race') {
-            this.showRaceModeInfo();
-            this.startBtnText.setText('INICIAR CARRERA (SOLO)');
-            this.multiBtnHitZone.setInteractive();
-            this.multiBtnBg.setVisible(true);
-            this.multiBtnText.setVisible(true);
-        } else {
-            this.showCatcherModeInfo();
-            this.startBtnText.setText('JUGAR ATRAPA-ENERGIA');
-            this.multiBtnHitZone.disableInteractive();
-            this.multiBtnBg.setVisible(false);
-            this.multiBtnText.setVisible(false);
-        }
-    }
-
-    private showRaceModeInfo(): void {
-        this.modeTitleText.setText(MAIN_CIRCUIT.name);
-        this.modeTitleText.setColor('#0284C7');
-        this.modeSubtitleText.setText(MAIN_CIRCUIT.subtitle);
-
-        this.mascotSprite.setTexture(MAIN_CIRCUIT.vehicleKey).setScale(2.8).setAngle(0);
-        this.itemSprite.setTexture(MAIN_CIRCUIT.turboKey).setVisible(true).setScale(1.8);
+        this.mascotSprite.setTexture(config.vehicleKey).setScale(2.8).setAngle(0);
+        this.itemSprite.setTexture(config.turboKey).setVisible(true).setScale(1.8);
 
         const instructions = [
-            'MISIÓN CARRERA 2.030 METROS · META ODS 7',
-            '• Circuito continuo de descenso vertiginoso.',
-            '• Turbos de viento suman +50 km/h y energía limpia.',
-            '• Esquiva rocas y postes para evitar trompos.',
-            '• Modo Solo o Multijugador en tiempo real por Salas.'
+            `MISIÓN CIRCUITO 2.030 METROS · ${config.energyLabel}`,
+            `• ${config.description}`,
+            `• REGLA DE CORTE: ${config.cutoffDescription}`,
+            `• TURBO: ${config.turboPopup}`,
+            `• DESCARBONIZACIÓN: ~${config.co2Factor} kg CO2/kWh evitado`
         ].join('\n');
         this.instructionsText.setText(instructions);
     }
 
-    private showCatcherModeInfo(): void {
-        this.modeTitleText.setText('ATRAPA-ENERGIA BESS');
-        this.modeTitleText.setColor('#16A34A');
-        this.modeSubtitleText.setText('ALMACENAMIENTO BESS Y ESTABILIDAD');
-
-        this.mascotSprite.setTexture('player_run').setScale(2.6).setAngle(0);
-        this.itemSprite.setTexture('battery').setVisible(true).setScale(2.0);
-
-        const instructions = [
-            'MISIÓN ALMACENAMIENTO BESS · META: 1.000 kWh',
-            '• Atrapa Sol (+10), Viento (+15), Hidro (+20) y Baterías (+35).',
-            '• CUIDADO: si dejas caer energía limpia pierdes 1 vida.',
-            '• Esquiva barriles de petróleo, carbón y sobrecargas.',
-            '• Cuentas con 5 vidas de estabilidad en la red.'
-        ].join('\n');
-        this.instructionsText.setText(instructions);
-    }
-
-    private launchActiveMode(): void {
+    private launchTournamentSolo(): void {
         this.startBtnHitZone.disableInteractive();
         this.cameras.main.fadeOut(180, 241, 245, 249);
 
         this.time.delayedCall(180, () => {
-            if (this.currentMode === 'race') {
-                this.scene.start('MainScene');
-            } else {
-                this.scene.start('CatcherScene');
-            }
+            this.scene.start('MainScene', { round: 1, skipGuide: false });
         });
     }
 
@@ -726,12 +681,13 @@ export class MenuScene extends Scene {
         }
     };
 
-    private handleRaceCountdown = (data: { countdownSeconds: number }): void => {
+    private handleRaceCountdown = (data: { countdownSeconds: number; round?: number }): void => {
         this.closeMultiplayerModal();
         this.cameras.main.fadeOut(150, 241, 245, 249);
         this.time.delayedCall(150, () => {
             this.scene.start('MainScene', {
                 multiplayer: true,
+                round: data?.round || 1,
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: data?.countdownSeconds || 3,
@@ -739,12 +695,13 @@ export class MenuScene extends Scene {
         });
     };
 
-    private handleRaceStarted = (): void => {
+    private handleRaceStarted = (data?: { round?: number }): void => {
         this.closeMultiplayerModal();
         this.cameras.main.fadeOut(150, 241, 245, 249);
         this.time.delayedCall(150, () => {
             this.scene.start('MainScene', {
                 multiplayer: true,
+                round: data?.round || 1,
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: 0,
