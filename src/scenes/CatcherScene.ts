@@ -282,6 +282,9 @@ export class CatcherScene extends Scene {
                 const hazard = this.physics.add.sprite(spawnX, 40, chosen.key) as FallingItem;
                 hazard.setScale(2.2);
                 hazard.setDepth(10); // Underneath HUD
+                if (hazard.preFX) {
+                    hazard.preFX.addGlow(0xEF4444, 4, 1.2, false, 0.1, 10);
+                }
                 hazard.itemType = 'hazard';
                 hazard.points = chosen.points;
                 hazard.label = chosen.label;
@@ -299,6 +302,9 @@ export class CatcherScene extends Scene {
                 const item = this.physics.add.sprite(spawnX, 40, chosen.key) as FallingItem;
                 item.setScale(2.2);
                 item.setDepth(10); // Underneath HUD
+                if (item.preFX) {
+                    item.preFX.addGlow(0x10B981, 4, 1.2, false, 0.1, 10);
+                }
                 item.itemType = 'clean';
                 item.points = chosen.points;
                 item.label = chosen.label;

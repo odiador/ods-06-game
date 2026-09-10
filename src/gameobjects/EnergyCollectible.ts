@@ -20,9 +20,9 @@ export class EnergyCollectible extends Physics.Arcade.Sprite {
         body.setSize(24, 24);
         body.setOffset(4, 4);
 
-        // Hardware accelerated glow
+        // Borde verde para cosas buenas (energias limpias)
         if (this.preFX) {
-            this.preFX.addGlow(data.glowColor, 3, 0.6, false, 0.1, 10);
+            this.preFX.addGlow(0x10B981, 4, 1.2, false, 0.1, 10);
         }
 
         // Floating sinusoidal wiggle

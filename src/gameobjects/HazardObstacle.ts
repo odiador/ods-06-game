@@ -19,9 +19,9 @@ export class HazardObstacle extends Physics.Arcade.Sprite {
         body.setSize(22, 22);
         body.setOffset(5, 5);
 
-        // Sinister red/dark glow
+        // Borde / resplandor rojo de peligro para cosas malas (contaminantes)
         if (this.preFX) {
-            this.preFX.addGlow(0xEF4444, 2, 0.5, false, 0.1, 8);
+            this.preFX.addGlow(0xEF4444, 4, 1.2, false, 0.1, 10);
         }
 
         // Warning throbbing pulse

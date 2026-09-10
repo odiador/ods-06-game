@@ -206,6 +206,10 @@ export class RoomDurableObject extends DurableObject {
                         return;
                     }
 
+                    if (this.roomStatus === 'countdown' || this.roomStatus === 'racing') {
+                        return;
+                    }
+
                     const round = Number(msg.round) || this.currentRound || 1;
                     this.currentRound = round;
                     this.roomStatus = 'countdown';
@@ -266,7 +270,7 @@ export class RoomDurableObject extends DurableObject {
 
                     currentData.finished = true;
                     currentData.finishTimeMs = Number(msg.timeMs) || Date.now();
-                    currentData.rank = alreadyFinished + 1;
+                    currentData.rank = Math.min(allBefore.length, alreadyFinished + 1);
                     ws.serializeAttachment(currentData);
 
                     const allAfter = this.getAllPlayers();

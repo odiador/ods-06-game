@@ -70,13 +70,13 @@ export class WinScene extends Scene {
         this.finalKwh = Math.max(1, data.kwh || 120);
         this.finalCo2 = Math.round(this.finalKwh * 0.45);
         this.isMultiplayer = data.multiplayer === true;
-        this.rank = data.rank || 1;
-        this.totalPlayers = data.totalPlayers || (this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6);
+        this.totalPlayers = Math.max(1, data.totalPlayers || (this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6));
+        this.rank = Math.max(1, Math.min(data.rank || 1, this.totalPlayers));
         this.podium = data.podium || [];
         this.currentLessonIdx = Phaser.Math.Between(0, ROTATING_LESSONS.length - 1);
 
         if (this.round < 4) {
-            this.cutoffRank = Math.ceil(this.totalPlayers * 0.5);
+            this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
             this.isQualified = this.rank <= this.cutoffRank;
         } else {
             this.cutoffRank = 3;
@@ -266,9 +266,24 @@ export class WinScene extends Scene {
         if (this.isMultiplayer) {
             if (this.round < 4) {
                 if (!this.isQualified) {
-                    this.currentBtnColor = 'red';
-                    renderBtn(false);
-                    btnText.setText('ELIMINADO (TOP 50% LLENO)');
+                    if (networkManager.isHost) {
+                        this.currentBtnColor = 'amber';
+                        renderBtn(false);
+                        btnText.setText(`AVANZAR A RONDA ${this.round + 1} (HOST)`);
+                        hitZone.setInteractive({ useHandCursor: true });
+                        hitZone.off('pointerdown');
+                        hitZone.on('pointerdown', () => {
+                            hitZone.disableInteractive();
+                            btnText.setText('INICIANDO RONDA...');
+                            networkManager.startRace(this.round + 1);
+                        });
+                        hitZone.on('pointerover', () => renderBtn(true));
+                        hitZone.on('pointerout', () => renderBtn(false));
+                    } else {
+                        this.currentBtnColor = 'red';
+                        renderBtn(false);
+                        btnText.setText('ELIMINADO (TOP 50% LLENO)');
+                    }
                 } else if (!networkManager.isHost) {
                     this.currentBtnColor = 'slate';
                     renderBtn(false);
@@ -820,13 +835,30 @@ export class WinScene extends Scene {
         if (!data) return;
 
         // 1. Update total players if more players arrived or connected
-        if (typeof data.totalPlayers === 'number' && data.totalPlayers > this.totalPlayers) {
+        if (typeof data.totalPlayers === 'number' && data.totalPlayers > 0) {
             this.totalPlayers = data.totalPlayers;
+            this.rank = Math.max(1, Math.min(this.rank, this.totalPlayers));
+            if (this.round < 4) {
+                this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
+                this.isQualified = this.rank <= this.cutoffRank;
+            }
             if (this.subTitleText) {
                 this.subTitleText.setText(`SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`);
             }
             if (this.bannerTextObj && this.rank === 1) {
                 this.bannerTextObj.setText(`¡CAMPEON ORO! 1° LUGAR DE ${this.totalPlayers}`);
+            }
+            if (this.posStatText) {
+                this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
+            }
+        }
+
+        // 1.1 Adopt authoritative server rank if this finish is for the local player
+        if (data.playerId === networkManager.playerId && typeof data.rank === 'number') {
+            this.rank = Math.max(1, Math.min(data.rank, this.totalPlayers));
+            if (this.round < 4) {
+                this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
+                this.isQualified = this.rank <= this.cutoffRank;
             }
             if (this.posStatText) {
                 this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
@@ -932,6 +964,10 @@ export class WinScene extends Scene {
     }
 
     private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number; startAt?: number; serverTime?: number }): void => {
+        if (!this.isQualified) {
+            // Eliminated players must not advance into the active race
+            return;
+        }
         this.cameras.main.fadeOut(180, 241, 245, 249);
         this.time.delayedCall(180, () => {
             this.scene.start('MainScene', {
@@ -986,9 +1022,10 @@ export class WinScene extends Scene {
         }
 
         if (data.players) {
-            this.totalPlayers = data.players.length;
+            this.totalPlayers = Math.max(1, data.players.length);
+            this.rank = Math.max(1, Math.min(this.rank, this.totalPlayers));
             if (this.posStatText) {
-                this.posStatText.setText(`${this.rank}° DE ${this.totalPlayers}`);
+                this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
             }
         }
     };

@@ -210,6 +210,10 @@ export class RoomManager {
                     return;
                 }
 
+                if (room.status === 'countdown' || room.status === 'racing') {
+                    return;
+                }
+
                 const round = Number(msg.round) || room.currentRound || 1;
                 room.currentRound = round;
                 room.status = 'countdown';
@@ -292,7 +296,7 @@ export class RoomManager {
                 const alreadyFinished = Array.from(room.players.values()).filter(p => p.finished).length;
                 player.finished = true;
                 player.finishTimeMs = Number(msg.timeMs) || Date.now();
-                player.rank = alreadyFinished + 1;
+                player.rank = Math.min(room.players.size, alreadyFinished + 1);
 
                 const finishedList = Array.from(room.players.values())
                     .filter(p => p.finished)

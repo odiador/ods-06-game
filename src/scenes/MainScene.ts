@@ -774,6 +774,10 @@ export class MainScene extends Scene {
         if (roll < 0.35) {
             const battery = this.physics.add.sprite(spawnX, -40, this.currentCircuit.batteryKey);
             battery.setScale(2.0).setDepth(5);
+            // Borde verde para cosas buenas (baterias limpias)
+            if (battery.preFX) {
+                battery.preFX.addGlow(0x10B981, 4, 1.2, false, 0.1, 10);
+            }
             this.batteries.add(battery);
         } else if (roll < 0.65) {
             const turbo = new WindTurbo(this, spawnX, -40, this.currentCircuit.turboKey, this.currentCircuit.themeColorHex);
@@ -877,6 +881,7 @@ export class MainScene extends Scene {
                 const finishedCount = networkManager.roomPlayers.filter(p => p.finished).length;
                 finalRank = finishedCount + 1;
             }
+            finalRank = Math.max(1, Math.min(finalRank, this.totalTournamentPlayers));
         } else {
             // Solo tournament rank simulation based on performance:
             const timeSec = totalTimeMs / 1000;
@@ -893,6 +898,7 @@ export class MainScene extends Scene {
             } else {
                 finalRank = Phaser.Math.Between(this.qualifiedCutoff + 4, this.totalTournamentPlayers);
             }
+            finalRank = Math.max(1, Math.min(finalRank, this.totalTournamentPlayers));
         }
 
         let podiumData = networkManager.roomPodium.length > 0
@@ -916,6 +922,11 @@ export class MainScene extends Scene {
         this.scene.stop('HudScene');
         this.cameras.main.fadeOut(250, 241, 245, 249);
         this.time.delayedCall(250, () => {
+            const authoritativeRank = (this.isMultiplayer && networkManager.myFinishRank > 0)
+                ? networkManager.myFinishRank
+                : finalRank;
+            const validRank = Math.max(1, Math.min(authoritativeRank, this.totalTournamentPlayers));
+
             this.scene.start('WinScene', {
                 mode: 'race',
                 round: this.round,
@@ -923,7 +934,7 @@ export class MainScene extends Scene {
                 kwh: this.cleanKwh,
                 distance: this.targetDistance,
                 multiplayer: this.isMultiplayer,
-                rank: finalRank || 1,
+                rank: validRank,
                 totalPlayers: this.totalTournamentPlayers,
                 podium: podiumData,
                 singleMapMode: this.singleMapMode

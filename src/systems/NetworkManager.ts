@@ -149,12 +149,26 @@ export class NetworkManager {
                     this.serverClockOffset = data.serverTime - Date.now();
                     this.serverStartAt = data.startAt;
                 }
+                this.roomPodium = [];
+                this.myFinishRank = 0;
+                this.roomPlayers.forEach(p => {
+                    p.finished = false;
+                    p.distance = 0;
+                    p.speed = 45;
+                    p.rank = 0;
+                });
                 EventBus.emit(GameEvents.RACE_COUNTDOWN, data);
                 break;
 
             case 'RACE_STARTED':
                 this.roomPodium = [];
                 this.myFinishRank = 0;
+                this.roomPlayers.forEach(p => {
+                    p.finished = false;
+                    p.distance = 0;
+                    p.speed = 45;
+                    p.rank = 0;
+                });
                 EventBus.emit(GameEvents.RACE_STARTED, data);
                 break;
 

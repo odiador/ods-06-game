@@ -28,6 +28,11 @@ export class TrackObstacle extends Physics.Arcade.Sprite {
             body.setSize(26, 26);
             body.setOffset(3, 3);
         }
+
+        // Borde / resplandor rojo de peligro para cosas malas (obstaculos)
+        if (this.preFX) {
+            this.preFX.addGlow(0xEF4444, 4, 1.2, false, 0.1, 10);
+        }
     }
 
     public hit(): void {
