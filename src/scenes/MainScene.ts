@@ -64,6 +64,13 @@ export class MainScene extends Scene {
     private remoteGliders: Map<string, RemoteGliderObject> = new Map();
     private multiScoreboardText?: Phaser.GameObjects.Text;
     private multiScoreboardBg?: Phaser.GameObjects.Graphics;
+    private latestRemotePlayers: Map<string, RemotePlayerInfo> = new Map();
+    private lastLeaderboardUpdate: number = 0;
+
+    // Background tab simulation & state
+    private backgroundWorker: Worker | null = null;
+    private lastHiddenTime: number = 0;
+    private hasFinished: boolean = false;
 
     // Countdown and starting grid
     private countdownSeconds: number = 0;
@@ -83,6 +90,10 @@ export class MainScene extends Scene {
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = false;
+        this.hasFinished = false;
+        this.lastHiddenTime = 0;
+        this.lastLeaderboardUpdate = 0;
+        this.latestRemotePlayers.clear();
         this.hasSpawnedFinishLine = false;
         this.finishLineObj = undefined;
         this.startLineObj = undefined;
@@ -254,8 +265,22 @@ export class MainScene extends Scene {
             networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, 0);
         }
 
+        // Initialize background tab simulation
+        this.initBackgroundSimulation();
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', this.handleVisibilityChange);
+        }
+
         // Clean up listeners on shutdown
         this.events.once('shutdown', () => {
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+            }
+            this.stopBackgroundSimulation();
+            if (this.backgroundWorker) {
+                this.backgroundWorker.terminate();
+                this.backgroundWorker = null;
+            }
             EventBus.off(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
             EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
             EventBus.off(GameEvents.RACE_STARTED, this.handleServerRaceStarted, this);
@@ -397,6 +422,13 @@ export class MainScene extends Scene {
     private syncMultiplayerPositions(currentSpeed: number): void {
         networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
 
+        // Update local scoreboard in real time with our live distance
+        const now = this.time.now;
+        if (now - this.lastLeaderboardUpdate > 150) {
+            this.lastLeaderboardUpdate = now;
+            this.updateLeaderboardUI();
+        }
+
         const { height } = this.scale;
         const localGliderY = height - 160;
 
@@ -418,27 +450,15 @@ export class MainScene extends Scene {
     private handleRemotePlayersState(players: RemotePlayerInfo[]): void {
         if (!this.isMultiplayer) return;
 
+        // Cache latest telemetry for all remote rivals
+        for (const p of players) {
+            if (p.id !== networkManager.playerId) {
+                this.latestRemotePlayers.set(p.id, p);
+            }
+        }
+
         // 1. Leaderboard & Telemetry
-        const sorted = [...players].sort((a, b) => b.distance - a.distance);
-        const total = sorted.length;
-        const myIdx = sorted.findIndex(p => p.id === networkManager.playerId);
-        const myRank = myIdx !== -1 ? myIdx + 1 : 1;
-
-        let standingsStr = `SALA: ${this.roomCode || 'ONLINE'} (${total}P)\n`;
-        const showCount = Math.min(4, total);
-        for (let i = 0; i < showCount; i++) {
-            const p = sorted[i];
-            const isMe = p.id === networkManager.playerId;
-            const tag = isMe ? 'TÚ' : p.name.slice(0, 6);
-            standingsStr += `${i + 1}° ${tag}: ${Math.round(p.distance)}m\n`;
-        }
-        if (myRank > 4) {
-            standingsStr += `..\n${myRank}° TÚ: ${Math.round(this.distanceTraveled)}m\n`;
-        }
-
-        if (this.multiScoreboardText) {
-            this.multiScoreboardText.setText(standingsStr.trim());
-        }
+        this.updateLeaderboardUI();
 
         // 2. Spatial Culling: exactly 2 ahead and 2 behind
         const aheadRivals = players
@@ -471,7 +491,11 @@ export class MainScene extends Scene {
                     resolution: 3
                 }).setOrigin(0.5);
 
-                container.add(sprite);
+                const indicator = this.add.graphics();
+                indicator.fillStyle(p.color || 0xF59E0B, 1);
+                indicator.fillTriangle(-6, -16, 6, -16, 0, -8);
+
+                container.add([sprite, indicator]);
                 container.add(nameText);
 
                 remote = {
@@ -493,6 +517,167 @@ export class MainScene extends Scene {
         for (const [id, remote] of this.remoteGliders) {
             if (!activeIds.has(id)) {
                 remote.container.setVisible(false);
+            }
+        }
+    }
+
+    private updateLeaderboardUI(): void {
+        if (!this.isMultiplayer || !this.multiScoreboardText) return;
+
+        // Build list of all participants: remote rivals + local player with live distance
+        const allParticipants: Array<{ id: string; name: string; distance: number; isMe: boolean }> = [];
+
+        for (const remote of this.latestRemotePlayers.values()) {
+            allParticipants.push({
+                id: remote.id,
+                name: remote.name,
+                distance: remote.distance,
+                isMe: false
+            });
+        }
+
+        allParticipants.push({
+            id: networkManager.playerId || 'local_me',
+            name: networkManager.playerName || 'TÚ',
+            distance: this.distanceTraveled,
+            isMe: true
+        });
+
+        // Sort descending by real-time distance
+        allParticipants.sort((a, b) => b.distance - a.distance);
+
+        const total = Math.max(allParticipants.length, networkManager.totalPlayersInRoom || 2);
+        const myIdx = allParticipants.findIndex(p => p.isMe);
+        const myRank = myIdx !== -1 ? myIdx + 1 : 1;
+
+        let standingsStr = `SALA: ${this.roomCode || 'ONLINE'} (${total}P)\n`;
+        const showCount = Math.min(4, allParticipants.length);
+        for (let i = 0; i < showCount; i++) {
+            const p = allParticipants[i];
+            const tag = p.isMe ? 'TÚ' : p.name.slice(0, 6);
+            standingsStr += `${i + 1}° ${tag}: ${Math.round(p.distance)}m\n`;
+        }
+        if (myRank > 4) {
+            standingsStr += `..\n${myRank}° TÚ: ${Math.round(this.distanceTraveled)}m\n`;
+        }
+
+        this.multiScoreboardText.setText(standingsStr.trim());
+    }
+
+    // ── Background Tab Simulation Support ──
+    private handleVisibilityChange = (): void => {
+        if (typeof document === 'undefined') return;
+        if (document.hidden) {
+            this.lastHiddenTime = performance.now();
+            this.startBackgroundSimulation();
+        } else {
+            this.stopBackgroundSimulation();
+            this.catchUpFromBackground();
+        }
+    };
+
+    private initBackgroundSimulation(): void {
+        if (typeof window === 'undefined') return;
+        try {
+            const workerBlob = new Blob([`
+                let interval = null;
+                self.onmessage = function(e) {
+                    if (e.data === 'start') {
+                        if (!interval) {
+                            interval = setInterval(function() {
+                                self.postMessage('tick');
+                            }, 100);
+                        }
+                    } else if (e.data === 'stop') {
+                        if (interval) {
+                            clearInterval(interval);
+                            interval = null;
+                        }
+                    }
+                };
+            `], { type: 'application/javascript' });
+            const blobUrl = URL.createObjectURL(workerBlob);
+            this.backgroundWorker = new Worker(blobUrl);
+            this.backgroundWorker.onmessage = () => {
+                this.simulateBackgroundTick();
+            };
+        } catch {
+            // Worker unsupported or blocked; catchUpFromBackground handles catch-up on focus
+        }
+    }
+
+    private startBackgroundSimulation(): void {
+        if (!this.isRaceActive || this.hasFinished) return;
+        this.backgroundWorker?.postMessage('start');
+    }
+
+    private stopBackgroundSimulation(): void {
+        this.backgroundWorker?.postMessage('stop');
+    }
+
+    private simulateBackgroundTick(): void {
+        if (!this.isRaceActive || this.hasFinished) return;
+
+        const now = performance.now();
+        const deltaSec = (now - this.lastHiddenTime) / 1000;
+        this.lastHiddenTime = now;
+
+        if (deltaSec <= 0 || deltaSec > 2) return;
+
+        const currentSpeed = this.glider ? this.glider.speed : 45;
+        const meters = (currentSpeed / 3.6) * deltaSec * 1.8;
+        this.distanceTraveled += meters;
+
+        const curDist = Math.min(this.targetDistance, Math.round(this.distanceTraveled));
+        const progressPct = (curDist / this.targetDistance) * 100;
+        EventBus.emit(GameEvents.DISTANCE_UPDATED, {
+            current: curDist,
+            target: this.targetDistance,
+            progress: progressPct,
+            distance: curDist
+        });
+        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeed));
+
+        if (this.isMultiplayer) {
+            networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+            this.updateLeaderboardUI();
+        }
+
+        if (this.distanceTraveled >= this.targetDistance) {
+            this.stopBackgroundSimulation();
+            this.finishRace();
+        }
+    }
+
+    private catchUpFromBackground(): void {
+        if (!this.isRaceActive || this.hasFinished || !this.lastHiddenTime) return;
+
+        const now = performance.now();
+        const deltaSec = (now - this.lastHiddenTime) / 1000;
+        this.lastHiddenTime = now;
+
+        if (deltaSec > 0.05 && deltaSec < 120) {
+            const currentSpeed = this.glider ? this.glider.speed : 45;
+            const meters = (currentSpeed / 3.6) * deltaSec * 1.8;
+            this.distanceTraveled += meters;
+
+            const curDist = Math.min(this.targetDistance, Math.round(this.distanceTraveled));
+            const progressPct = (curDist / this.targetDistance) * 100;
+            EventBus.emit(GameEvents.DISTANCE_UPDATED, {
+                current: curDist,
+                target: this.targetDistance,
+                progress: progressPct,
+                distance: curDist
+            });
+            EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeed));
+
+            if (this.isMultiplayer) {
+                networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+                this.updateLeaderboardUI();
+            }
+
+            if (this.distanceTraveled >= this.targetDistance) {
+                this.finishRace();
             }
         }
     }
@@ -621,8 +806,10 @@ export class MainScene extends Scene {
     }
 
     private finishRace(): void {
-        if (!this.isRaceActive) return;
+        if (!this.isRaceActive || this.hasFinished) return;
         this.isRaceActive = false;
+        this.hasFinished = true;
+        this.stopBackgroundSimulation();
         (window as any).__gameActive = false;
 
         const totalTimeMs = Math.round(this.time.now - this.raceStartTime);
