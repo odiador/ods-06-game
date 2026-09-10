@@ -37,47 +37,76 @@ export class NetworkManager {
         return this.isInRoom && this.socket?.readyState === WebSocket.OPEN;
     }
 
-    public connect(): Promise<boolean> {
+    public connect(roomCode?: string): Promise<boolean> {
         return new Promise((resolve) => {
             if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                 resolve(true);
                 return;
             }
 
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const query = roomCode ? `?room=${encodeURIComponent(roomCode.trim().toUpperCase())}` : '';
 
-            try {
-                this.socket = new WebSocket(wsUrl);
-
-                this.socket.onopen = () => {
-                    console.log('[NetworkManager] Connected to room server at', wsUrl);
-                    resolve(true);
-                };
-
-                this.socket.onerror = (err) => {
-                    console.warn('[NetworkManager] WebSocket error:', err);
-                    resolve(false);
-                };
-
-                this.socket.onclose = () => {
-                    console.log('[NetworkManager] Disconnected from room server');
-                    this.isInRoom = false;
-                    EventBus.emit(GameEvents.ROOM_LEFT);
-                };
-
-                this.socket.onmessage = (event) => {
-                    try {
-                        const data = JSON.parse(event.data);
-                        this.handleServerMessage(data);
-                    } catch (e) {
-                        console.error('[NetworkManager] Malformed message from server', e);
-                    }
-                };
-            } catch (e) {
-                console.error('[NetworkManager] Failed to create WebSocket', e);
-                resolve(false);
+            const candidateUrls: string[] = [];
+            if (isLocal) {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                candidateUrls.push(`${protocol}//${window.location.host}/ws${query}`);
+            } else {
+                const customDomain = (import.meta as any).env?.VITE_ROOM_SERVER_URL || 'wss://ods07-rooms.odiador.dev/ws';
+                candidateUrls.push(`${customDomain}${query}`);
+                candidateUrls.push(`wss://ods07-roomserver.arroa03.workers.dev/ws${query}`);
             }
+
+            const tryConnect = (index: number) => {
+                if (index >= candidateUrls.length) {
+                    console.warn('[NetworkManager] All WebSocket connection candidates failed');
+                    resolve(false);
+                    return;
+                }
+
+                const targetUrl = candidateUrls[index];
+                try {
+                    const ws = new WebSocket(targetUrl);
+                    let hasOpened = false;
+
+                    ws.onopen = () => {
+                        hasOpened = true;
+                        this.socket = ws;
+                        console.log('[NetworkManager] Connected to room server at', targetUrl);
+                        resolve(true);
+                    };
+
+                    ws.onerror = (err) => {
+                        console.warn(`[NetworkManager] Failed connecting to ${targetUrl}:`, err);
+                        if (!hasOpened) {
+                            try { ws.close(); } catch {}
+                            tryConnect(index + 1);
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        if (hasOpened) {
+                            console.log('[NetworkManager] Disconnected from room server');
+                            this.isInRoom = false;
+                            EventBus.emit(GameEvents.ROOM_LEFT);
+                        }
+                    };
+
+                    ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            this.handleServerMessage(data);
+                        } catch (e) {
+                            console.error('[NetworkManager] Malformed message from server', e);
+                        }
+                    };
+                } catch (e) {
+                    console.warn(`[NetworkManager] Exception connecting to ${targetUrl}:`, e);
+                    tryConnect(index + 1);
+                }
+            };
+
+            tryConnect(0);
         });
     }
 
@@ -117,13 +146,19 @@ export class NetworkManager {
     }
 
     public async joinRoom(roomCode: string, playerName: string): Promise<boolean> {
-        const connected = await this.connect();
+        const normalizedCode = roomCode.trim().toUpperCase().slice(0, 8) || 'ODS7';
+
+        if (this.socket && this.roomCode && this.roomCode !== normalizedCode) {
+            this.leaveRoom();
+        }
+
+        const connected = await this.connect(normalizedCode);
         if (!connected) return false;
 
         this.playerName = playerName;
         this.send({
             type: 'JOIN_ROOM',
-            roomCode,
+            roomCode: normalizedCode,
             playerName,
         });
         return true;
@@ -168,7 +203,11 @@ export class NetworkManager {
     public leaveRoom(): void {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
             this.send({ type: 'LEAVE_ROOM' });
+            try {
+                this.socket.close();
+            } catch {}
         }
+        this.socket = undefined;
         this.isInRoom = false;
         this.roomCode = null;
         this.playerId = null;
