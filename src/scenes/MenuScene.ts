@@ -694,53 +694,69 @@ export class MenuScene extends Scene {
     }
 
     private setupMultiplayerListeners(): void {
-        EventBus.on(GameEvents.ROOM_JOINED, () => {
-            if (this.multiplayerModal) {
-                this.multiplayerModal.removeAll(true);
-                this.openMultiplayerModal();
-            }
-        });
+        this.removeMultiplayerListeners();
+        EventBus.on(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
+        EventBus.on(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
+        EventBus.on(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
+        EventBus.on(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
 
-        EventBus.on(GameEvents.ROOM_UPDATED, () => {
-            if (this.multiplayerModal && networkManager.isMultiplayerActive()) {
-                this.multiplayerModal.removeAll(true);
-                this.openMultiplayerModal();
-            }
-        });
-
-        EventBus.on(GameEvents.RACE_COUNTDOWN, (data: { countdownSeconds: number }) => {
-            if (this.multiplayerModal) {
-                const { width, height } = this.scale;
-                const alertText = this.add.text(width / 2, height / 2 + 180, `¡INICIANDO EN ${data.countdownSeconds || 3}s...!`, {
-                    fontSize: '14px',
-                    fontFamily: "'Press Start 2P', monospace",
-                    color: '#D97706'
-                }).setOrigin(0.5).setDepth(1100);
-                this.multiplayerModal.add(alertText);
-            }
-        });
-
-        EventBus.on(GameEvents.RACE_STARTED, () => {
-            this.closeMultiplayerModal();
-            this.cameras.main.fadeOut(150, 241, 245, 249);
-            this.time.delayedCall(150, () => {
-                this.scene.start('MainScene', {
-                    multiplayer: true,
-                    roomCode: networkManager.roomCode,
-                    skipGuide: true,
-                });
-            });
+        this.events.once('shutdown', () => {
+            this.removeMultiplayerListeners();
         });
     }
+
+    private removeMultiplayerListeners(): void {
+        EventBus.off(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
+        EventBus.off(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
+        EventBus.off(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
+        EventBus.off(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
+    }
+
+    private handleRoomJoined = (): void => {
+        if (this.multiplayerModal) {
+            this.multiplayerModal.removeAll(true);
+            this.openMultiplayerModal();
+        }
+    };
+
+    private handleRoomUpdated = (): void => {
+        if (this.multiplayerModal && networkManager.isMultiplayerActive()) {
+            this.multiplayerModal.removeAll(true);
+            this.openMultiplayerModal();
+        }
+    };
+
+    private handleRaceCountdown = (data: { countdownSeconds: number }): void => {
+        this.closeMultiplayerModal();
+        this.cameras.main.fadeOut(150, 241, 245, 249);
+        this.time.delayedCall(150, () => {
+            this.scene.start('MainScene', {
+                multiplayer: true,
+                roomCode: networkManager.roomCode,
+                skipGuide: true,
+                countdownSeconds: data?.countdownSeconds || 3,
+            });
+        });
+    };
+
+    private handleRaceStarted = (): void => {
+        this.closeMultiplayerModal();
+        this.cameras.main.fadeOut(150, 241, 245, 249);
+        this.time.delayedCall(150, () => {
+            this.scene.start('MainScene', {
+                multiplayer: true,
+                roomCode: networkManager.roomCode,
+                skipGuide: true,
+                countdownSeconds: 0,
+            });
+        });
+    };
 
     private closeMultiplayerModal(): void {
         if (this.multiplayerModal) {
             this.multiplayerModal.destroy();
             this.multiplayerModal = undefined;
         }
-        EventBus.off(GameEvents.ROOM_JOINED);
-        EventBus.off(GameEvents.ROOM_UPDATED);
-        EventBus.off(GameEvents.RACE_COUNTDOWN);
-        EventBus.off(GameEvents.RACE_STARTED);
+        this.removeMultiplayerListeners();
     }
 }

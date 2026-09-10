@@ -62,21 +62,34 @@ export class MainScene extends Scene {
     private multiScoreboardText?: Phaser.GameObjects.Text;
     private multiScoreboardBg?: Phaser.GameObjects.Graphics;
 
+    // Countdown and starting grid
+    private countdownSeconds: number = 0;
+    private countdownContainer?: Phaser.GameObjects.Container;
+    private countdownTimer?: Phaser.Time.TimerEvent;
+    private spawnTimer?: Phaser.Time.TimerEvent;
+    private startLineObj?: Phaser.GameObjects.Sprite;
+    private idleGliderTween?: Phaser.Tweens.Tween;
+
     constructor() {
         super('MainScene');
     }
 
-    init(data?: { skipGuide?: boolean; multiplayer?: boolean; roomCode?: string }): void {
+    init(data?: { skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number }): void {
         this.distanceTraveled = 0;
         this.cleanKwh = 0;
         this.isRaceActive = false;
         this.hasSpawnedFinishLine = false;
         this.finishLineObj = undefined;
+        this.startLineObj = undefined;
         this.sideDecorations = [];
         this.remoteGliders.clear();
         this.showGuide = data?.skipGuide !== true;
         this.isMultiplayer = data?.multiplayer === true || networkManager.isMultiplayerActive();
         this.roomCode = data?.roomCode || networkManager.roomCode || undefined;
+        this.countdownSeconds = data?.countdownSeconds !== undefined ? data.countdownSeconds : (this.isMultiplayer ? 3 : 0);
+        this.countdownContainer = undefined;
+        this.countdownTimer = undefined;
+        this.idleGliderTween = undefined;
         (window as any).__gameActive = false;
     }
 
@@ -168,11 +181,12 @@ export class MainScene extends Scene {
         });
 
         // ── 5. Spawner Timers ──
-        this.time.addEvent({
+        this.spawnTimer = this.time.addEvent({
             delay: 650,
             callback: this.spawnTrackElements,
             callbackScope: this,
-            loop: true
+            loop: true,
+            paused: this.countdownSeconds > 0
         });
 
         // ── 6. Multiplayer Widget & Network Sync ──
@@ -198,16 +212,45 @@ export class MainScene extends Scene {
 
             EventBus.on(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
             EventBus.on(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            EventBus.on(GameEvents.RACE_STARTED, this.handleServerRaceStarted, this);
+
+            // Populate starting grid with existing room players immediately
+            if (networkManager.roomPlayers.length > 0) {
+                this.handleRemotePlayersState(networkManager.roomPlayers);
+            }
+            networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, 0);
         }
 
         // Clean up listeners on shutdown
         this.events.once('shutdown', () => {
             EventBus.off(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
             EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            EventBus.off(GameEvents.RACE_STARTED, this.handleServerRaceStarted, this);
+            if (this.countdownTimer) {
+                this.countdownTimer.remove(false);
+                this.countdownTimer = undefined;
+            }
+            if (this.idleGliderTween) {
+                this.idleGliderTween.stop();
+                this.idleGliderTween = undefined;
+            }
         });
 
         // ── 7. Race Initialization ──
-        if (this.showGuide) {
+        if (this.isMultiplayer && this.countdownSeconds > 0) {
+            this.isRaceActive = false;
+            // Place starting grid line across the track
+            this.startLineObj = this.add.sprite(width / 2, height - 120, 'finish_line').setScale(2.5, 1.0).setDepth(2);
+            // Glider gentle idle engine rumble
+            this.idleGliderTween = this.tweens.add({
+                targets: this.glider,
+                y: height - 162,
+                duration: 80,
+                yoyo: true,
+                repeat: -1
+            });
+            this.startMultiplayerCountdown(this.countdownSeconds);
+        } else if (this.showGuide) {
             new InitialGuideModal(this, {
                 mode: 'race',
                 durationSeconds: 10,
@@ -223,11 +266,20 @@ export class MainScene extends Scene {
     private startActiveRace(): void {
         this.isRaceActive = true;
         this.raceStartTime = this.time.now;
+        if (this.spawnTimer) {
+            this.spawnTimer.paused = false;
+        }
         (window as any).__gameActive = true;
     }
 
     update(_time: number, delta: number): void {
-        if (!this.isRaceActive) return;
+        if (!this.isRaceActive) {
+            // Synchronize positions & interpolate remote gliders on starting grid during countdown
+            if (this.isMultiplayer) {
+                this.syncMultiplayerPositions(0);
+            }
+            return;
+        }
 
         const currentSpeed = this.glider.speed;
         const baseScroll = (currentSpeed / 45) * (delta / 16.666) * 5;
@@ -286,6 +338,15 @@ export class MainScene extends Scene {
             this.spawnFinishLine();
         }
 
+        // Scroll starting grid line down off screen
+        if (this.startLineObj) {
+            this.startLineObj.y += baseScroll * 1.0;
+            if (this.startLineObj.y > this.scale.height + 60) {
+                this.startLineObj.destroy();
+                this.startLineObj = undefined;
+            }
+        }
+
         // Scroll finish line
         if (this.finishLineObj) {
             this.finishLineObj.y += baseScroll * 1.2;
@@ -296,26 +357,28 @@ export class MainScene extends Scene {
 
         // ── Multiplayer Position Sync & Interpolation ──
         if (this.isMultiplayer) {
-            networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+            this.syncMultiplayerPositions(currentSpeed);
+        }
+    }
 
-            const { height } = this.scale;
-            const localGliderY = height - 160;
+    private syncMultiplayerPositions(currentSpeed: number): void {
+        networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
 
-            for (const [, remote] of this.remoteGliders) {
-                if (!remote.container.visible) continue;
+        const { height } = this.scale;
+        const localGliderY = height - 160;
 
-                // Smooth interpolation of rival X
-                remote.container.x += (remote.targetX - remote.container.x) * 0.25;
+        for (const [, remote] of this.remoteGliders) {
+            // Smooth interpolation of rival X
+            remote.container.x += (remote.targetX - remote.container.x) * 0.25;
 
-                // Relative Y based on track distance delta
-                const deltaDist = remote.targetDistance - this.distanceTraveled;
-                const targetY = localGliderY - deltaDist * 2.2;
-                remote.container.y += (targetY - remote.container.y) * 0.25;
+            // Relative Y based on track distance delta
+            const deltaDist = remote.targetDistance - this.distanceTraveled;
+            const targetY = localGliderY - deltaDist * 2.2;
+            remote.container.y += (targetY - remote.container.y) * 0.25;
 
-                // Hide if far off screen
-                const isVisible = remote.container.y > -80 && remote.container.y < height + 80;
-                remote.container.setVisible(isVisible);
-            }
+            // Hide if far off screen
+            const isVisible = remote.container.y > -80 && remote.container.y < height + 80;
+            remote.container.setVisible(isVisible);
         }
     }
 
@@ -361,7 +424,8 @@ export class MainScene extends Scene {
         for (const p of activeRivals) {
             let remote = this.remoteGliders.get(p.id);
             if (!remote) {
-                const container = this.add.container(p.x, -200).setDepth(10);
+                const initialY = (this.scale.height - 160) - (p.distance - this.distanceTraveled) * 2.2;
+                const container = this.add.container(p.x, initialY).setDepth(10);
                 const sprite = this.add.sprite(0, 0, this.currentCircuit.vehicleKey).setScale(1.2);
                 sprite.setTint(p.color || 0xF59E0B);
 
@@ -560,5 +624,169 @@ export class MainScene extends Scene {
                 podium: podiumData
             });
         });
+    }
+
+    private startMultiplayerCountdown(initialSeconds: number): void {
+        const { width, height } = this.scale;
+        const centerY = height / 2 - 50;
+
+        const container = this.add.container(width / 2, centerY).setDepth(500);
+        this.countdownContainer = container;
+
+        const boxW = 280;
+        const boxH = 130;
+
+        const gantry = this.add.graphics();
+        // Drop shadow
+        gantry.fillStyle(0x000000, 0.45);
+        gantry.fillRoundedRect(-boxW / 2 + 4, -boxH / 2 + 4, boxW, boxH, 10);
+        // Container background
+        gantry.fillStyle(0x0F172A, 0.95);
+        gantry.fillRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, 10);
+        gantry.lineStyle(2, 0x0284C7, 1);
+        gantry.strokeRoundedRect(-boxW / 2, -boxH / 2, boxW, boxH, 10);
+
+        const titleText = this.add.text(0, -boxH / 2 + 18, 'SEMAFORO DE SALIDA', {
+            fontSize: '9px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#94A3B8',
+            resolution: 3
+        }).setOrigin(0.5);
+
+        const lightGfx = this.add.graphics();
+        const lightPositions = [-70, 0, 70];
+        const lightY = -5;
+        const lightR = 18;
+
+        const drawLights = (activeCount: number, isGo: boolean): void => {
+            lightGfx.clear();
+            lightPositions.forEach((lx, i) => {
+                // Bezel
+                lightGfx.fillStyle(0x1E293B, 1);
+                lightGfx.fillCircle(lx, lightY, lightR + 3);
+                lightGfx.lineStyle(1.5, 0x475569, 1);
+                lightGfx.strokeCircle(lx, lightY, lightR + 3);
+
+                // Bulb
+                let bulbColor = 0x334155; // Off
+                if (isGo) {
+                    bulbColor = 0x10B981; // Green
+                } else if (i < activeCount) {
+                    bulbColor = i === 0 ? 0xEF4444 : 0xF59E0B;
+                }
+
+                lightGfx.fillStyle(bulbColor, 1);
+                lightGfx.fillCircle(lx, lightY, lightR);
+
+                if (isGo || (i < activeCount)) {
+                    // Highlight reflection
+                    lightGfx.fillStyle(0xFFFFFF, 0.4);
+                    lightGfx.fillCircle(lx - 5, lightY - 5, lightR / 3);
+                }
+            });
+        };
+
+        const countdownLabel = this.add.text(0, 38, String(initialSeconds), {
+            fontSize: '26px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#EF4444',
+            resolution: 3
+        }).setOrigin(0.5);
+
+        container.add([gantry, titleText, lightGfx, countdownLabel]);
+
+        // Draw initial state (Light 1 RED)
+        drawLights(1, false);
+        SoundFX.playCollect(1);
+
+        let remaining = initialSeconds;
+
+        this.countdownTimer = this.time.addEvent({
+            delay: 1000,
+            repeat: initialSeconds - 1,
+            callback: () => {
+                remaining--;
+                if (remaining === 2) {
+                    drawLights(2, false);
+                    countdownLabel.setText('2');
+                    countdownLabel.setColor('#F59E0B');
+                    countdownLabel.setScale(1.4);
+                    this.tweens.add({ targets: countdownLabel, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+                    SoundFX.playCollect(1);
+                } else if (remaining === 1) {
+                    drawLights(3, false);
+                    countdownLabel.setText('1');
+                    countdownLabel.setColor('#F59E0B');
+                    countdownLabel.setScale(1.4);
+                    this.tweens.add({ targets: countdownLabel, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+                    SoundFX.playCollect(2);
+                } else if (remaining <= 0) {
+                    this.triggerRaceStartGo();
+                }
+            }
+        });
+    }
+
+    private triggerRaceStartGo(): void {
+        if (this.isRaceActive) return;
+
+        if (this.countdownTimer) {
+            this.countdownTimer.remove(false);
+            this.countdownTimer = undefined;
+        }
+
+        if (this.idleGliderTween) {
+            this.idleGliderTween.stop();
+            this.idleGliderTween = undefined;
+            this.glider.y = this.scale.height - 160;
+        }
+
+        if (this.countdownContainer) {
+            const label = this.countdownContainer.getAt(3) as Phaser.GameObjects.Text;
+            if (label && label.setText) {
+                label.setText('¡SALIDA!');
+                label.setColor('#10B981');
+                label.setScale(1.5);
+                this.tweens.add({ targets: label, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+            }
+
+            const lightGfx = this.countdownContainer.getAt(2) as Phaser.GameObjects.Graphics;
+            if (lightGfx) {
+                lightGfx.clear();
+                [-70, 0, 70].forEach(lx => {
+                    lightGfx.fillStyle(0x1E293B, 1);
+                    lightGfx.fillCircle(lx, -5, 21);
+                    lightGfx.fillStyle(0x10B981, 1);
+                    lightGfx.fillCircle(lx, -5, 18);
+                    lightGfx.fillStyle(0xFFFFFF, 0.4);
+                    lightGfx.fillCircle(lx - 5, -10, 6);
+                });
+            }
+
+            this.tweens.add({
+                targets: this.countdownContainer,
+                alpha: 0,
+                y: this.countdownContainer.y - 25,
+                duration: 400,
+                delay: 350,
+                onComplete: () => {
+                    this.countdownContainer?.destroy();
+                    this.countdownContainer = undefined;
+                }
+            });
+        }
+
+        SoundFX.playWindTurbo();
+        this.cameras.main.shake(150, 0.005);
+        if (this.spawnTimer) {
+            this.spawnTimer.paused = false;
+        }
+        this.startActiveRace();
+    }
+
+    private handleServerRaceStarted(): void {
+        if (!this.isRaceActive) {
+            this.triggerRaceStartGo();
+        }
     }
 }

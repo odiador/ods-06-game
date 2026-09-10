@@ -1,5 +1,7 @@
 import { Scene } from 'phaser';
 import { GameModeId, getApplianceEquivalence, ROTATING_LESSONS, ApplianceComparison } from '../types/game';
+import { EventBus, GameEvents } from '../systems/EventBus';
+import { SoundFX } from '../systems/SoundFX';
 
 export interface PodiumEntry {
     rank: number;
@@ -34,6 +36,17 @@ export class WinScene extends Scene {
 
     private lessonTitleText!: Phaser.GameObjects.Text;
     private lessonBodyText!: Phaser.GameObjects.Text;
+    private bannerTextObj?: Phaser.GameObjects.Text;
+    private subTitleText?: Phaser.GameObjects.Text;
+    private posStatText?: Phaser.GameObjects.Text;
+    private liveToast?: Phaser.GameObjects.Container;
+    private pedestalSlots: Array<{
+        rank: number;
+        gfx: Phaser.GameObjects.Graphics;
+        nameText: Phaser.GameObjects.Text;
+        timeText: Phaser.GameObjects.Text;
+        isMe: boolean;
+    }> = [];
 
     constructor() {
         super('WinScene');
@@ -92,7 +105,7 @@ export class WinScene extends Scene {
             }
         }
 
-        this.add.text(width / 2, bannerY + 18, bannerTitle, {
+        this.bannerTextObj = this.add.text(width / 2, bannerY + 18, bannerTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: bannerColor,
@@ -118,12 +131,20 @@ export class WinScene extends Scene {
             ? `SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`
             : (this.mode === 'race' ? 'CIRCUITO RED RENOVABLE 2030' : 'SISTEMA DE BATERIAS Y ESTABILIDAD');
 
-        this.add.text(width / 2, 142, subTitle, {
+        this.subTitleText = this.add.text(width / 2, 142, subTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0284C7',
             resolution: 3
         }).setOrigin(0.5);
+
+        // Multiplayer real-time finish listener
+        if (this.isMultiplayer) {
+            EventBus.on(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            this.events.once('shutdown', () => {
+                EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            });
+        }
 
         const cardX = 24;
         const cardW = width - 48;
@@ -257,6 +278,7 @@ export class WinScene extends Scene {
             { rank: 3, x: baseX + 54, w: 84, h: 42, bg: 0xD97706, border: 0xB45309, tag: '3°', data: p3 }
         ];
 
+        this.pedestalSlots = [];
         pedestals.forEach(ped => {
             const isMe = ped.rank === this.rank;
             const py = baseY - ped.h;
@@ -278,7 +300,7 @@ export class WinScene extends Scene {
             // Pilot name above pedestal
             const nameColor = isMe ? '#0284C7' : '#0F172A';
             const nameLabel = isMe ? '★ TÚ ★' : ped.data.name.slice(0, 6);
-            this.add.text(ped.x + ped.w / 2, py - 20, nameLabel, {
+            const nameText = this.add.text(ped.x + ped.w / 2, py - 20, nameLabel, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: nameColor,
@@ -287,12 +309,20 @@ export class WinScene extends Scene {
 
             // Time above pedestal
             const timeLabel = ped.data.timeSec ? `${ped.data.timeSec}s` : '--';
-            this.add.text(ped.x + ped.w / 2, py - 8, timeLabel, {
+            const timeText = this.add.text(ped.x + ped.w / 2, py - 8, timeLabel, {
                 fontSize: '8px',
                 fontFamily: "'Silkscreen', monospace",
                 color: '#64748B',
                 resolution: 3
             }).setOrigin(0.5);
+
+            this.pedestalSlots.push({
+                rank: ped.rank,
+                gfx,
+                nameText,
+                timeText,
+                isMe
+            });
         });
 
         // Extra rank status badge if player is not in top 3
@@ -341,12 +371,16 @@ export class WinScene extends Scene {
                 resolution: 3
             });
 
-            this.add.text(cardX + cardW - 16, yPos, row.val, {
+            const valText = this.add.text(cardX + cardW - 16, yPos, row.val, {
                 fontSize: '10px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: row.color,
                 resolution: 3
             }).setOrigin(1, 0);
+
+            if (row.label === 'POSICION') {
+                this.posStatText = valText;
+            }
         });
 
         // ── 3. Card Leccion Rotativa ODS 7 ──
@@ -555,5 +589,121 @@ export class WinScene extends Scene {
         const lesson = ROTATING_LESSONS[this.currentLessonIdx];
         this.lessonTitleText.setText(lesson.title);
         this.lessonBodyText.setText(lesson.text);
+    }
+
+    private handlePeerFinished(data: any): void {
+        if (!data) return;
+
+        // 1. Update total players if more players arrived or connected
+        if (typeof data.totalPlayers === 'number' && data.totalPlayers > this.totalPlayers) {
+            this.totalPlayers = data.totalPlayers;
+            if (this.subTitleText) {
+                this.subTitleText.setText(`SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`);
+            }
+            if (this.bannerTextObj && this.rank === 1) {
+                this.bannerTextObj.setText(`¡CAMPEON ORO! 1° LUGAR DE ${this.totalPlayers}`);
+            }
+            if (this.posStatText) {
+                this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
+            }
+        }
+
+        // 2. Extract incoming podium entries
+        const incomingPodium: PodiumEntry[] = Array.isArray(data.podium) ? data.podium : [];
+        if (incomingPodium.length > 0) {
+            this.podium = incomingPodium;
+        }
+
+        const finishRank = Number(data.rank);
+        const finishName = String(data.name || 'Piloto');
+        const finishTimeSec = data.finishTimeMs ? (Number(data.finishTimeMs) / 1000).toFixed(1) : (data.timeSec || '--');
+
+        // 3. Update pedestal slots live (2°, 3°, or others)
+        this.pedestalSlots.forEach(slot => {
+            if (slot.isMe) return; // Never overwrite local player's spot
+
+            const entry = incomingPodium.find(p => p.rank === slot.rank);
+            if (entry) {
+                const timeStr = entry.timeSec ? `${entry.timeSec}s` : (entry.finishTimeMs ? `${(entry.finishTimeMs / 1000).toFixed(1)}s` : '--');
+                slot.nameText.setText(entry.name.slice(0, 6));
+                slot.timeText.setText(timeStr);
+            } else if (slot.rank === finishRank) {
+                slot.nameText.setText(finishName.slice(0, 6));
+                slot.timeText.setText(`${finishTimeSec}s`);
+            }
+
+            // If this slot was updated right now with this arrival
+            if (slot.rank === finishRank) {
+                this.tweens.add({
+                    targets: [slot.nameText, slot.timeText],
+                    scale: 1.3,
+                    duration: 180,
+                    yoyo: true,
+                    ease: 'Back.easeOut'
+                });
+                SoundFX.playCollect(2);
+            }
+        });
+
+        // 4. Floating arrival notification banner
+        this.showLiveArrivalToast(finishName, finishRank, finishTimeSec);
+    }
+
+    private showLiveArrivalToast(name: string, rank: number, timeSec: string): void {
+        const { width } = this.scale;
+        if (this.liveToast) {
+            this.liveToast.destroy();
+            this.liveToast = undefined;
+        }
+
+        const toast = this.add.container(width / 2, -15).setDepth(300);
+        this.liveToast = toast;
+
+        const toastW = width - 48;
+        const toastH = 26;
+
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0F172A, 0.96);
+        bg.fillRoundedRect(-toastW / 2, -toastH / 2, toastW, toastH, 6);
+        bg.lineStyle(1.5, 0x0284C7, 1);
+        bg.strokeRoundedRect(-toastW / 2, -toastH / 2, toastW, toastH, 6);
+        toast.add(bg);
+
+        const rankTag = rank === 1 ? '1° ORO' : rank === 2 ? '2° PLATA' : rank === 3 ? '3° BRONCE' : `${rank}° LUGAR`;
+        const msg = `[ ${rankTag} ] ${name.slice(0, 8)} CRUZO META (${timeSec}s)`;
+        const text = this.add.text(0, 0, msg, {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#38BDF8',
+            resolution: 3
+        }).setOrigin(0.5);
+        toast.add(text);
+
+        toast.setAlpha(0);
+        toast.setScale(0.95);
+        this.tweens.add({
+            targets: toast,
+            alpha: 1,
+            scale: 1,
+            y: 18,
+            duration: 220,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+                this.time.delayedCall(3000, () => {
+                    if (this.liveToast === toast) {
+                        this.tweens.add({
+                            targets: toast,
+                            alpha: 0,
+                            y: -15,
+                            duration: 200,
+                            onComplete: () => {
+                                toast.destroy();
+                                if (this.liveToast === toast) this.liveToast = undefined;
+                            }
+                        });
+                    }
+                });
+            }
+        });
     }
 }
