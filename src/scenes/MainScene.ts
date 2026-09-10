@@ -76,6 +76,11 @@ export class MainScene extends Scene {
     private countdownSeconds: number = 0;
     private countdownContainer?: Phaser.GameObjects.Container;
     private countdownTimer?: Phaser.Time.TimerEvent;
+    private countdownLightsGfx?: Phaser.GameObjects.Graphics;
+    private countdownLabelText?: Phaser.GameObjects.Text;
+    private startAt: number = 0;
+    private targetStartLocalTime: number = 0;
+    private lastCountdownSec: number = -1;
     private spawnTimer?: Phaser.Time.TimerEvent;
     private startLineObj?: Phaser.GameObjects.Sprite;
     private idleGliderTween?: Phaser.Tweens.Tween;
@@ -86,7 +91,16 @@ export class MainScene extends Scene {
         super('MainScene');
     }
 
-    init(data?: { round?: number; skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number; singleMapMode?: boolean }): void {
+    init(data?: {
+        round?: number;
+        skipGuide?: boolean;
+        multiplayer?: boolean;
+        roomCode?: string;
+        countdownSeconds?: number;
+        singleMapMode?: boolean;
+        startAt?: number;
+        serverTime?: number;
+    }): void {
         this.round = data?.round && TOURNAMENT_ROUNDS[data.round] ? data.round : 1;
         this.currentCircuit = TOURNAMENT_ROUNDS[this.round];
         this.distanceTraveled = 0;
@@ -107,7 +121,19 @@ export class MainScene extends Scene {
         this.countdownSeconds = data?.countdownSeconds !== undefined ? data.countdownSeconds : (this.isMultiplayer ? 3 : 0);
         this.countdownContainer = undefined;
         this.countdownTimer = undefined;
+        this.countdownLightsGfx = undefined;
+        this.countdownLabelText = undefined;
         this.idleGliderTween = undefined;
+
+        this.startAt = data?.startAt || networkManager.serverStartAt || 0;
+        if (this.isMultiplayer && this.startAt > 0) {
+            this.targetStartLocalTime = this.startAt - networkManager.serverClockOffset;
+        } else if (this.isMultiplayer && this.countdownSeconds > 0) {
+            this.targetStartLocalTime = Date.now() + this.countdownSeconds * 1000;
+        } else {
+            this.targetStartLocalTime = 0;
+        }
+        this.lastCountdownSec = -1;
 
         if (this.isMultiplayer) {
             this.totalTournamentPlayers = networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 50;
@@ -297,10 +323,12 @@ export class MainScene extends Scene {
                 this.idleGliderTween.stop();
                 this.idleGliderTween = undefined;
             }
+            this.countdownLightsGfx = undefined;
+            this.countdownLabelText = undefined;
         });
 
         // ── 7. Race Initialization ──
-        if (this.isMultiplayer && this.countdownSeconds > 0) {
+        if (this.isMultiplayer && (this.countdownSeconds > 0 || this.targetStartLocalTime > 0)) {
             this.isRaceActive = false;
             // Place starting grid line across the track
             this.startLineObj = this.add.sprite(width / 2, height - 120, 'finish_line').setScale(2.5, 1.0).setDepth(2);
@@ -312,7 +340,13 @@ export class MainScene extends Scene {
                 yoyo: true,
                 repeat: -1
             });
-            this.startMultiplayerCountdown(this.countdownSeconds);
+
+            const now = Date.now();
+            if (this.targetStartLocalTime > 0 && now >= this.targetStartLocalTime) {
+                this.triggerRaceStartGo();
+            } else {
+                this.startMultiplayerCountdown();
+            }
         } else if (this.showGuide) {
             new InitialGuideModal(this, {
                 mode: 'race',
@@ -340,6 +374,7 @@ export class MainScene extends Scene {
             // Synchronize positions & interpolate remote gliders on starting grid during countdown
             if (this.isMultiplayer) {
                 this.syncMultiplayerPositions(0);
+                this.updateSynchronizedCountdown();
             }
             return;
         }
@@ -896,7 +931,7 @@ export class MainScene extends Scene {
         });
     }
 
-    private startMultiplayerCountdown(initialSeconds: number): void {
+    private startMultiplayerCountdown(): void {
         const { width, height } = this.scale;
         const centerY = height / 2 - 50;
 
@@ -922,77 +957,101 @@ export class MainScene extends Scene {
             color: '#94A3B8'
         }).setOrigin(0.5);
 
-        const lightGfx = this.add.graphics();
-        const lightPositions = [-70, 0, 70];
-        const lightY = -5;
-        const lightR = 18;
+        this.countdownLightsGfx = this.add.graphics();
 
-        const drawLights = (activeCount: number, isGo: boolean): void => {
-            lightGfx.clear();
-            lightPositions.forEach((lx, i) => {
-                // Bezel
-                lightGfx.fillStyle(0x1E293B, 1);
-                lightGfx.fillCircle(lx, lightY, lightR + 3);
-                lightGfx.lineStyle(1.5, 0x475569, 1);
-                lightGfx.strokeCircle(lx, lightY, lightR + 3);
-
-                // Bulb
-                let bulbColor = 0x334155; // Off
-                if (isGo) {
-                    bulbColor = 0x10B981; // Green
-                } else if (i < activeCount) {
-                    bulbColor = i === 0 ? 0xEF4444 : 0xF59E0B;
-                }
-
-                lightGfx.fillStyle(bulbColor, 1);
-                lightGfx.fillCircle(lx, lightY, lightR);
-
-                if (isGo || (i < activeCount)) {
-                    // Highlight reflection
-                    lightGfx.fillStyle(0xFFFFFF, 0.4);
-                    lightGfx.fillCircle(lx - 5, lightY - 5, lightR / 3);
-                }
-            });
-        };
-
-        const countdownLabel = this.add.text(0, 38, String(initialSeconds), {
+        this.countdownLabelText = this.add.text(0, 38, '3', {
             fontSize: '26px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#EF4444'
         }).setOrigin(0.5);
 
-        container.add([gantry, titleText, lightGfx, countdownLabel]);
+        container.add([gantry, titleText, this.countdownLightsGfx, this.countdownLabelText]);
 
-        // Draw initial state (Light 1 RED)
-        drawLights(1, false);
-        SoundFX.playCollect(1);
+        // Immediate first step calculation and render
+        this.updateSynchronizedCountdown();
+    }
 
-        let remaining = initialSeconds;
+    private drawCountdownLights(activeCount: number, isGo: boolean): void {
+        if (!this.countdownLightsGfx) return;
+        const lightGfx = this.countdownLightsGfx;
+        const lightPositions = [-70, 0, 70];
+        const lightY = -5;
+        const lightR = 18;
 
-        this.countdownTimer = this.time.addEvent({
-            delay: 1000,
-            repeat: initialSeconds - 1,
-            callback: () => {
-                remaining--;
-                if (remaining === 2) {
-                    drawLights(2, false);
-                    countdownLabel.setText('2');
-                    countdownLabel.setColor('#F59E0B');
-                    countdownLabel.setScale(1.4);
-                    this.tweens.add({ targets: countdownLabel, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
-                    SoundFX.playCollect(1);
-                } else if (remaining === 1) {
-                    drawLights(3, false);
-                    countdownLabel.setText('1');
-                    countdownLabel.setColor('#F59E0B');
-                    countdownLabel.setScale(1.4);
-                    this.tweens.add({ targets: countdownLabel, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
-                    SoundFX.playCollect(2);
-                } else if (remaining <= 0) {
-                    this.triggerRaceStartGo();
-                }
+        lightGfx.clear();
+        lightPositions.forEach((lx, i) => {
+            // Bezel
+            lightGfx.fillStyle(0x1E293B, 1);
+            lightGfx.fillCircle(lx, lightY, lightR + 3);
+            lightGfx.lineStyle(1.5, 0x475569, 1);
+            lightGfx.strokeCircle(lx, lightY, lightR + 3);
+
+            // Bulb
+            let bulbColor = 0x334155; // Off
+            if (isGo) {
+                bulbColor = 0x10B981; // Green
+            } else if (i < activeCount) {
+                bulbColor = i === 0 ? 0xEF4444 : 0xF59E0B;
+            }
+
+            lightGfx.fillStyle(bulbColor, 1);
+            lightGfx.fillCircle(lx, lightY, lightR);
+
+            if (isGo || (i < activeCount)) {
+                // Highlight reflection
+                lightGfx.fillStyle(0xFFFFFF, 0.4);
+                lightGfx.fillCircle(lx - 5, lightY - 5, lightR / 3);
             }
         });
+    }
+
+    private updateSynchronizedCountdown(): void {
+        if (this.isRaceActive) return;
+
+        if (this.targetStartLocalTime <= 0) {
+            return;
+        }
+
+        const now = Date.now();
+        const remainingMs = this.targetStartLocalTime - now;
+
+        if (remainingMs <= 0) {
+            this.triggerRaceStartGo();
+            return;
+        }
+
+        // Compute step 3, 2, or 1 based on remaining milliseconds
+        const sec = Math.min(3, Math.max(1, Math.ceil(remainingMs / 1000)));
+        if (sec !== this.lastCountdownSec) {
+            this.lastCountdownSec = sec;
+
+            if (sec === 3) {
+                this.drawCountdownLights(1, false);
+                if (this.countdownLabelText) {
+                    this.countdownLabelText.setText('3');
+                    this.countdownLabelText.setColor('#EF4444');
+                }
+                SoundFX.playCollect(1);
+            } else if (sec === 2) {
+                this.drawCountdownLights(2, false);
+                if (this.countdownLabelText) {
+                    this.countdownLabelText.setText('2');
+                    this.countdownLabelText.setColor('#F59E0B');
+                    this.countdownLabelText.setScale(1.4);
+                    this.tweens.add({ targets: this.countdownLabelText, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+                }
+                SoundFX.playCollect(1);
+            } else if (sec === 1) {
+                this.drawCountdownLights(3, false);
+                if (this.countdownLabelText) {
+                    this.countdownLabelText.setText('1');
+                    this.countdownLabelText.setColor('#F59E0B');
+                    this.countdownLabelText.setScale(1.4);
+                    this.tweens.add({ targets: this.countdownLabelText, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+                }
+                SoundFX.playCollect(2);
+            }
+        }
     }
 
     private triggerRaceStartGo(): void {
@@ -1010,26 +1069,14 @@ export class MainScene extends Scene {
         }
 
         if (this.countdownContainer) {
-            const label = this.countdownContainer.getAt(3) as Phaser.GameObjects.Text;
-            if (label && label.setText) {
-                label.setText('¡SALIDA!');
-                label.setColor('#10B981');
-                label.setScale(1.5);
-                this.tweens.add({ targets: label, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
+            if (this.countdownLabelText && this.countdownLabelText.setText) {
+                this.countdownLabelText.setText('¡SALIDA!');
+                this.countdownLabelText.setColor('#10B981');
+                this.countdownLabelText.setScale(1.5);
+                this.tweens.add({ targets: this.countdownLabelText, scale: 1.0, duration: 200, ease: 'Back.easeOut' });
             }
 
-            const lightGfx = this.countdownContainer.getAt(2) as Phaser.GameObjects.Graphics;
-            if (lightGfx) {
-                lightGfx.clear();
-                [-70, 0, 70].forEach(lx => {
-                    lightGfx.fillStyle(0x1E293B, 1);
-                    lightGfx.fillCircle(lx, -5, 21);
-                    lightGfx.fillStyle(0x10B981, 1);
-                    lightGfx.fillCircle(lx, -5, 18);
-                    lightGfx.fillStyle(0xFFFFFF, 0.4);
-                    lightGfx.fillCircle(lx - 5, -10, 6);
-                });
-            }
+            this.drawCountdownLights(3, true);
 
             this.tweens.add({
                 targets: this.countdownContainer,
@@ -1040,6 +1087,8 @@ export class MainScene extends Scene {
                 onComplete: () => {
                     this.countdownContainer?.destroy();
                     this.countdownContainer = undefined;
+                    this.countdownLightsGfx = undefined;
+                    this.countdownLabelText = undefined;
                 }
             });
         }

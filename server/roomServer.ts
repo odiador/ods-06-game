@@ -223,22 +223,39 @@ export class RoomManager {
                     p.rank = 0;
                 }
 
+                const now = Date.now();
+                const countdownSeconds = 3;
+                const startAt = now + 3500;
+
                 this.broadcast(roomCode, {
                     type: 'RACE_COUNTDOWN',
                     round,
-                    countdownSeconds: 3,
+                    countdownSeconds,
+                    startAt,
+                    serverTime: now,
                 });
 
-                // Auto transition to racing
+                // Auto transition to racing at exact startAt
+                const delayMs = Math.max(0, startAt - Date.now());
                 setTimeout(() => {
                     if (this.rooms.has(roomCode)) {
                         room.status = 'racing';
                         this.broadcast(roomCode, {
                             type: 'RACE_STARTED',
                             round,
+                            startAt,
                         });
                     }
-                }, 3000);
+                }, delayMs);
+                break;
+            }
+
+            case 'LEAVE_ROOM': {
+                const roomCode = String(msg.roomCode || '').toUpperCase();
+                const playerId = String(msg.playerId || '');
+                if (roomCode && playerId) {
+                    this.leaveRoom(roomCode, playerId);
+                }
                 break;
             }
 
@@ -295,7 +312,7 @@ export class RoomManager {
                 const firstHalfComplete = finishedList.length >= cutoff;
 
                 if (firstHalfComplete && room.status === 'racing') {
-                    room.status = 'podium';
+                    room.status = 'finished';
                 }
 
                 this.broadcast(roomCode, {
@@ -330,11 +347,14 @@ export class RoomManager {
 
         // If host left, appoint new host
         let newHostId: string | undefined;
-        if (player?.isHost) {
+        let newHostName: string | undefined;
+        const wasHost = player?.isHost === true;
+        if (wasHost) {
             const nextPlayer = room.players.values().next().value;
             if (nextPlayer) {
                 nextPlayer.isHost = true;
                 newHostId = nextPlayer.id;
+                newHostName = nextPlayer.name;
             }
         }
 
@@ -345,8 +365,10 @@ export class RoomManager {
             type: 'PLAYER_LEFT',
             playerId,
             playerName: player?.name || 'Piloto',
-            players: publicPlayers,
+            wasHost,
             newHostId,
+            newHostName,
+            players: publicPlayers,
             status: room.status,
         });
 

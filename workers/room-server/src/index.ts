@@ -288,7 +288,7 @@ export class RoomDurableObject extends DurableObject {
                     const firstHalfComplete = finishedList.length >= cutoff;
 
                     if (firstHalfComplete && this.roomStatus === 'racing') {
-                        this.roomStatus = 'podium';
+                        this.roomStatus = 'finished';
                     }
 
                     this.broadcast({

@@ -212,4 +212,120 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
         await ctx1.close();
         await ctxLate.close();
     });
+
+    test('delegates host to second player and shows lobby notification toast when host leaves room', async ({ browser }) => {
+        const roomCode = 'ODS_DEL';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+
+        // 1. P1 joins as host
+        await p1.goto(`/?room=${roomCode}&name=HOST_A`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(1200);
+
+        // 2. P2 joins as second player
+        await p2.goto(`/?room=${roomCode}&name=PILOT_B`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(1200);
+
+        // Verify P1 is host and P2 is NOT host
+        const isP1Host = await p1.evaluate(() => (window as any).networkManager?.isHost);
+        const isP2Host = await p2.evaluate(() => (window as any).networkManager?.isHost);
+        expect(isP1Host).toBe(true);
+        expect(isP2Host).toBe(false);
+
+        // 3. P1 leaves the room
+        await p1.evaluate(() => {
+            (window as any).networkManager?.leaveRoom();
+        });
+
+        // 4. P2 should now be delegated host
+        await p2.waitForFunction(() => {
+            return (window as any).networkManager?.isHost === true;
+        }, { timeout: 5000 });
+
+        const isP2NowHost = await p2.evaluate(() => (window as any).networkManager?.isHost);
+        expect(isP2NowHost).toBe(true);
+
+        // 5. Verify P2 has the lobby toast visible
+        const toastVisible = await p2.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const menu = game?.scene?.getScene('MenuScene') as any;
+            return menu && menu.lobbyToast !== undefined;
+        });
+        expect(toastVisible).toBe(true);
+
+        await p2.screenshot({ path: 'screenshots/e2e-lobby-host-delegation.png' });
+
+        await ctx1.close();
+        await ctx2.close();
+    });
+
+    test('synchronizes race start timestamp across players so both start simultaneously', async ({ browser }) => {
+        const roomCode = 'ODS_SYNC';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+
+        await p1.goto(`/?room=${roomCode}&name=SYNC_1`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(1200);
+
+        await p2.goto(`/?room=${roomCode}&name=SYNC_2`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(1200);
+
+        // Host triggers race
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        // Both enter MainScene
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 10000 });
+
+        await p2.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 10000 });
+
+        // Verify both clients received authoritative startAt timestamp
+        const startAt1 = await p1.evaluate(() => (window as any).networkManager?.serverStartAt);
+        const startAt2 = await p2.evaluate(() => (window as any).networkManager?.serverStartAt);
+        expect(startAt1).toBeGreaterThan(0);
+        expect(startAt1).toBe(startAt2);
+
+        // Wait until race active
+        await Promise.all([
+            p1.waitForFunction(() => {
+                const game = (window as any).__phaserGame;
+                const main = game?.scene?.getScene('MainScene') as any;
+                return main && main.isRaceActive === true;
+            }, { timeout: 10000 }),
+            p2.waitForFunction(() => {
+                const game = (window as any).__phaserGame;
+                const main = game?.scene?.getScene('MainScene') as any;
+                return main && main.isRaceActive === true;
+            }, { timeout: 10000 })
+        ]);
+
+        const p1Active = await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return (game?.scene?.getScene('MainScene') as any)?.isRaceActive;
+        });
+        const p2Active = await p2.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            return (game?.scene?.getScene('MainScene') as any)?.isRaceActive;
+        });
+        expect(p1Active).toBe(true);
+        expect(p2Active).toBe(true);
+
+        await ctx1.close();
+        await ctx2.close();
+    });
 });

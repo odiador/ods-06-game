@@ -47,6 +47,10 @@ export class WinScene extends Scene {
     private posStatText?: Phaser.GameObjects.Text;
     private liveToast?: Phaser.GameObjects.Container;
     private podiumTimer?: Phaser.Time.TimerEvent;
+    private advanceBtnText?: Phaser.GameObjects.Text;
+    private advanceHitZone?: Phaser.GameObjects.Zone;
+    private renderAdvanceBtn?: (hover: boolean) => void;
+    private currentBtnColor: 'green' | 'amber' | 'slate' | 'red' = 'green';
     private pedestalSlots: Array<{
         rank: number;
         gfx: Phaser.GameObjects.Graphics;
@@ -199,6 +203,9 @@ export class WinScene extends Scene {
                     this.podiumTimer.remove(false);
                     this.podiumTimer = undefined;
                 }
+                this.advanceBtnText = undefined;
+                this.advanceHitZone = undefined;
+                this.renderAdvanceBtn = undefined;
             });
         }
 
@@ -218,19 +225,19 @@ export class WinScene extends Scene {
         const btnX = width / 2 - btnW / 2;
 
         const btnBg = this.add.graphics();
-        let currentBtnColor: 'green' | 'amber' | 'slate' | 'red' = 'green';
+        this.currentBtnColor = 'green';
 
-        const renderBtn = (hover: boolean): void => {
+        this.renderAdvanceBtn = (hover: boolean): void => {
             btnBg.clear();
             let fillC = 0x16A34A;
             let edgeC = 0x15803D;
-            if (currentBtnColor === 'slate') {
+            if (this.currentBtnColor === 'slate') {
                 fillC = hover ? 0x475569 : 0x334155;
                 edgeC = 0x1E293B;
-            } else if (currentBtnColor === 'amber') {
+            } else if (this.currentBtnColor === 'amber') {
                 fillC = hover ? 0xFBBF24 : 0xF59E0B;
                 edgeC = 0xB45309;
-            } else if (currentBtnColor === 'red') {
+            } else if (this.currentBtnColor === 'red') {
                 fillC = hover ? 0xEF4444 : 0xDC2626;
                 edgeC = 0x991B1B;
             } else {
@@ -242,6 +249,7 @@ export class WinScene extends Scene {
             btnBg.fillStyle(edgeC, 1);
             btnBg.fillRect(btnX, btnY + btnH - 3, btnW, 3);
         };
+        const renderBtn = this.renderAdvanceBtn;
 
         const btnText = this.add.text(width / 2, btnY + btnH / 2 - 1, '', {
             fontSize: '8px',
@@ -249,24 +257,26 @@ export class WinScene extends Scene {
             color: '#FFFFFF',
             align: 'center'
         }).setOrigin(0.5);
+        this.advanceBtnText = btnText;
 
         const hitZone = this.add.zone(width / 2, btnY + btnH / 2, btnW, btnH)
             .setOrigin(0.5);
+        this.advanceHitZone = hitZone;
 
         if (this.isMultiplayer) {
             if (this.round < 4) {
                 if (!this.isQualified) {
-                    currentBtnColor = 'red';
+                    this.currentBtnColor = 'red';
                     renderBtn(false);
                     btnText.setText('ELIMINADO (TOP 50% LLENO)');
                 } else if (!networkManager.isHost) {
-                    currentBtnColor = 'slate';
+                    this.currentBtnColor = 'slate';
                     renderBtn(false);
                     btnText.setText('ESPERANDO AL ANFITRION...');
                 } else {
                     // Host: 3-second viewing delay for podium before allowing continuation
                     let cooldown = 3;
-                    currentBtnColor = 'amber';
+                    this.currentBtnColor = 'amber';
                     renderBtn(false);
                     btnText.setText(`MOSTRANDO PODIO (${cooldown}s)...`);
 
@@ -278,7 +288,7 @@ export class WinScene extends Scene {
                             if (cooldown > 0) {
                                 btnText.setText(`MOSTRANDO PODIO (${cooldown}s)...`);
                             } else {
-                                currentBtnColor = 'green';
+                                this.currentBtnColor = 'green';
                                 renderBtn(false);
                                 btnText.setText(`AVANZAR A RONDA ${this.round + 1} (HOST)`);
                                 hitZone.setInteractive({ useHandCursor: true });
@@ -297,7 +307,7 @@ export class WinScene extends Scene {
             } else {
                 // Round 4 (Grand Final) in Multiplayer
                 if (networkManager.isHost) {
-                    currentBtnColor = 'amber';
+                    this.currentBtnColor = 'amber';
                     renderBtn(false);
                     btnText.setText('NUEVO TORNEO (HOST)');
                     hitZone.setInteractive({ useHandCursor: true });
@@ -308,7 +318,7 @@ export class WinScene extends Scene {
                     hitZone.on('pointerover', () => renderBtn(true));
                     hitZone.on('pointerout', () => renderBtn(false));
                 } else {
-                    currentBtnColor = 'slate';
+                    this.currentBtnColor = 'slate';
                     renderBtn(false);
                     btnText.setText('FIN DEL TORNEO 2030');
                 }
@@ -316,7 +326,7 @@ export class WinScene extends Scene {
         } else {
             // Solo Mode
             if (this.singleMapMode) {
-                currentBtnColor = 'amber';
+                this.currentBtnColor = 'amber';
                 renderBtn(false);
                 btnText.setText(`REINTENTAR ETAPA (R${this.round})`);
                 hitZone.setInteractive({ useHandCursor: true });
@@ -334,7 +344,7 @@ export class WinScene extends Scene {
                     });
                 });
             } else {
-                currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
+                this.currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
                 renderBtn(false);
                 if (this.round < 4 && this.isQualified) {
                     const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
@@ -921,7 +931,7 @@ export class WinScene extends Scene {
         });
     }
 
-    private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number }): void => {
+    private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number; startAt?: number; serverTime?: number }): void => {
         this.cameras.main.fadeOut(180, 241, 245, 249);
         this.time.delayedCall(180, () => {
             this.scene.start('MainScene', {
@@ -929,13 +939,52 @@ export class WinScene extends Scene {
                 multiplayer: true,
                 skipGuide: true,
                 countdownSeconds: data?.countdownSeconds || 3,
-                roomCode: networkManager.roomCode
+                roomCode: networkManager.roomCode,
+                startAt: data?.startAt,
+                serverTime: data?.serverTime
             });
         });
     };
 
-    private handlePeerLeft = (data: { playerId: string; playerName?: string; players?: any[] }): void => {
-        this.showLiveArrivalToast(data.playerName || 'PILOTO', 0, 'DESCONECTADO');
+    private handlePeerLeft = (data: {
+        playerId: string;
+        playerName?: string;
+        wasHost?: boolean;
+        newHostId?: string;
+        newHostName?: string;
+        players?: any[];
+    }): void => {
+        const pName = data?.playerName || 'PILOTO';
+        if (data?.wasHost && networkManager.isHost) {
+            this.showLiveArrivalToast(pName, 0, 'ANFITRIÓN SALIÓ - ¡ERES HOST!');
+            if (this.advanceBtnText && this.advanceHitZone && this.renderAdvanceBtn && this.isQualified) {
+                if (this.round < 4) {
+                    this.currentBtnColor = 'green';
+                    this.renderAdvanceBtn(false);
+                    this.advanceBtnText.setText(`AVANZAR A RONDA ${this.round + 1} (HOST)`);
+                    this.advanceHitZone.setInteractive({ useHandCursor: true });
+                    this.advanceHitZone.off('pointerdown');
+                    this.advanceHitZone.on('pointerdown', () => {
+                        this.advanceHitZone?.disableInteractive();
+                        this.advanceBtnText?.setText('INICIANDO RONDA...');
+                        networkManager.startRace(this.round + 1);
+                    });
+                } else {
+                    this.currentBtnColor = 'amber';
+                    this.renderAdvanceBtn(false);
+                    this.advanceBtnText.setText('NUEVO TORNEO (HOST)');
+                    this.advanceHitZone.setInteractive({ useHandCursor: true });
+                    this.advanceHitZone.off('pointerdown');
+                    this.advanceHitZone.on('pointerdown', () => {
+                        this.advanceHitZone?.disableInteractive();
+                        networkManager.startRace(1);
+                    });
+                }
+            }
+        } else {
+            this.showLiveArrivalToast(pName, 0, 'DESCONECTADO');
+        }
+
         if (data.players) {
             this.totalPlayers = data.players.length;
             if (this.posStatText) {

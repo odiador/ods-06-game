@@ -30,6 +30,8 @@ export class MenuScene extends Scene {
     private currentRoomKey: string = 'ODS7';
     private currentPilotName: string = 'Piloto';
     private roomErrorMessage?: string;
+    private lobbyToast?: Phaser.GameObjects.Container;
+    private isTransitioningToRace: boolean = false;
 
     constructor() {
         super('MenuScene');
@@ -38,6 +40,7 @@ export class MenuScene extends Scene {
     create(): void {
         const { width, height } = this.scale;
         this.cameras.main.setRoundPixels(true);
+        this.isTransitioningToRace = false;
         (window as any).__gameActive = false;
 
         // Generate clean random default name
@@ -742,6 +745,7 @@ export class MenuScene extends Scene {
         EventBus.on(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
         EventBus.on(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
         EventBus.on(GameEvents.ROOM_ERROR, this.handleRoomError, this);
+        EventBus.on(GameEvents.PLAYER_LEFT, this.handlePlayerLeft, this);
         EventBus.on(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
         EventBus.on(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
 
@@ -754,6 +758,7 @@ export class MenuScene extends Scene {
         EventBus.off(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
         EventBus.off(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
         EventBus.off(GameEvents.ROOM_ERROR, this.handleRoomError, this);
+        EventBus.off(GameEvents.PLAYER_LEFT, this.handlePlayerLeft, this);
         EventBus.off(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
         EventBus.off(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
     }
@@ -781,7 +786,93 @@ export class MenuScene extends Scene {
         }
     };
 
-    private handleRaceCountdown = (data: { countdownSeconds: number; round?: number }): void => {
+    private handlePlayerLeft = (data: {
+        playerId: string;
+        playerName?: string;
+        wasHost?: boolean;
+        newHostId?: string;
+        newHostName?: string;
+        players?: any[];
+    }): void => {
+        // 1. Re-render lobby view if modal is active
+        if (this.multiplayerModal && networkManager.isMultiplayerActive()) {
+            this.multiplayerModal.removeAll(true);
+            this.openMultiplayerModal();
+        }
+
+        // 2. Show prominent lobby notification toast
+        const pName = data?.playerName || 'Un piloto';
+        let msg = `[ SALIDA ] ${pName} salió de la sala.`;
+        let col = '#EF4444';
+
+        if (data?.wasHost || (data?.newHostId && data.newHostId === networkManager.playerId)) {
+            if (networkManager.isHost) {
+                msg = `[ ANFITRIÓN SALIÓ ] ¡AHORA ERES EL ANFITRIÓN!`;
+                col = '#F59E0B';
+            } else if (data?.newHostName) {
+                msg = `[ ANFITRIÓN SALIÓ ] Nuevo anfitrión: ${data.newHostName}`;
+                col = '#0284C7';
+            }
+        }
+
+        this.showLobbyToast(msg, col);
+    };
+
+    private showLobbyToast(msg: string, colorHex: string): void {
+        const { width } = this.scale;
+        if (this.lobbyToast) {
+            this.lobbyToast.destroy();
+            this.lobbyToast = undefined;
+        }
+
+        const toast = this.add.container(width / 2, -30).setDepth(2000);
+        this.lobbyToast = toast;
+
+        const toastW = width - 48;
+        const toastH = 34;
+
+        const bg = this.add.graphics();
+        bg.fillStyle(0x0F172A, 0.96);
+        bg.fillRoundedRect(-toastW / 2, -toastH / 2, toastW, toastH, 6);
+        const strokeCol = colorHex === '#F59E0B' ? 0xF59E0B : (colorHex === '#EF4444' ? 0xEF4444 : 0x0284C7);
+        bg.lineStyle(1.5, strokeCol, 1);
+        bg.strokeRoundedRect(-toastW / 2, -toastH / 2, toastW, toastH, 6);
+        toast.add(bg);
+
+        const text = this.add.text(0, 0, msg, {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: colorHex
+        }).setOrigin(0.5);
+        toast.add(text);
+
+        this.tweens.add({
+            targets: toast,
+            y: 36,
+            duration: 220,
+            ease: 'Back.easeOut',
+            onComplete: () => {
+                this.time.delayedCall(3200, () => {
+                    if (this.lobbyToast === toast) {
+                        this.tweens.add({
+                            targets: toast,
+                            y: -30,
+                            alpha: 0,
+                            duration: 200,
+                            onComplete: () => {
+                                toast.destroy();
+                                if (this.lobbyToast === toast) this.lobbyToast = undefined;
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    private handleRaceCountdown = (data: { countdownSeconds: number; round?: number; startAt?: number; serverTime?: number }): void => {
+        if (this.isTransitioningToRace) return;
+        this.isTransitioningToRace = true;
         this.closeMultiplayerModal();
         this.cameras.main.fadeOut(150, 241, 245, 249);
         this.time.delayedCall(150, () => {
@@ -791,11 +882,15 @@ export class MenuScene extends Scene {
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: data?.countdownSeconds || 3,
+                startAt: data?.startAt,
+                serverTime: data?.serverTime
             });
         });
     };
 
-    private handleRaceStarted = (data?: { round?: number }): void => {
+    private handleRaceStarted = (data?: { round?: number; startAt?: number }): void => {
+        if (this.isTransitioningToRace) return;
+        this.isTransitioningToRace = true;
         this.closeMultiplayerModal();
         this.cameras.main.fadeOut(150, 241, 245, 249);
         this.time.delayedCall(150, () => {
@@ -805,11 +900,16 @@ export class MenuScene extends Scene {
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: 0,
+                startAt: data?.startAt
             });
         });
     };
 
     private closeMultiplayerModal(): void {
+        if (this.lobbyToast) {
+            this.lobbyToast.destroy();
+            this.lobbyToast = undefined;
+        }
         if (this.multiplayerModal) {
             this.multiplayerModal.destroy();
             this.multiplayerModal = undefined;

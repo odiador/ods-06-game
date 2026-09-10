@@ -35,6 +35,8 @@ export class NetworkManager {
     public roomPodium: PodiumEntry[] = [];
     public myFinishRank: number = 0;
     public totalPlayersInRoom: number = 1;
+    public serverStartAt: number = 0;
+    public serverClockOffset: number = 0;
 
     private sendThrottleTimer: number = 0;
 
@@ -135,10 +137,18 @@ export class NetworkManager {
 
             case 'ROOM_UPDATE':
                 this.roomPlayers = data.players || [];
+                const meInUpdate = this.roomPlayers.find(p => p.id === this.playerId);
+                if (meInUpdate) {
+                    this.isHost = meInUpdate.isHost;
+                }
                 EventBus.emit(GameEvents.ROOM_UPDATED, data);
                 break;
 
             case 'RACE_COUNTDOWN':
+                if (typeof data.serverTime === 'number' && typeof data.startAt === 'number') {
+                    this.serverClockOffset = data.serverTime - Date.now();
+                    this.serverStartAt = data.startAt;
+                }
                 EventBus.emit(GameEvents.RACE_COUNTDOWN, data);
                 break;
 
@@ -168,8 +178,13 @@ export class NetworkManager {
 
             case 'PLAYER_LEFT':
                 this.roomPlayers = data.players || [];
-                if (data.newHostId === this.playerId) {
-                    this.isHost = true;
+                if (data.newHostId) {
+                    this.isHost = data.newHostId === this.playerId;
+                } else {
+                    const meInLeft = this.roomPlayers.find(p => p.id === this.playerId);
+                    if (meInLeft) {
+                        this.isHost = meInLeft.isHost;
+                    }
                 }
                 EventBus.emit(GameEvents.PLAYER_LEFT, data);
                 break;
@@ -239,7 +254,11 @@ export class NetworkManager {
 
     public leaveRoom(): void {
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.send({ type: 'LEAVE_ROOM' });
+            this.send({
+                type: 'LEAVE_ROOM',
+                roomCode: this.roomCode,
+                playerId: this.playerId
+            });
             try {
                 this.socket.close();
             } catch {}
@@ -248,6 +267,11 @@ export class NetworkManager {
         this.isInRoom = false;
         this.roomCode = null;
         this.playerId = null;
+        this.isHost = false;
+        this.roomPlayers = [];
+        this.roomPodium = [];
+        this.serverStartAt = 0;
+        this.serverClockOffset = 0;
     }
 
     private send(data: any): void {
