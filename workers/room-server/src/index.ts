@@ -75,10 +75,11 @@ export type ServerMessage =
     | { type: 'ROOM_JOINED'; playerId: string; roomCode: string; isHost: boolean; players: PlayerData[]; status: RoomStatus; round?: number }
     | { type: 'ROOM_UPDATE'; roomCode?: string; players: PlayerData[]; status: RoomStatus; leftPlayerId?: string; round?: number }
     | { type: 'ROOM_ERROR'; message: string }
-    | { type: 'RACE_COUNTDOWN'; countdownSeconds: number; round?: number }
-    | { type: 'RACE_STARTED'; round?: number }
+    | { type: 'RACE_COUNTDOWN'; countdownSeconds: number; round?: number; startAt?: number; serverTime?: number }
+    | { type: 'RACE_STARTED'; round?: number; startAt?: number }
     | { type: 'PLAYERS_STATE'; players: PlayerData[] }
-    | { type: 'PLAYER_FINISHED'; playerId: string; name: string; rank: number; finishTimeMs: number; kwh: number; podium?: PodiumEntry[]; totalPlayers?: number };
+    | { type: 'PLAYER_FINISHED'; playerId: string; name: string; rank: number; finishTimeMs: number; kwh: number; podium?: PodiumEntry[]; totalPlayers?: number; cutoff?: number; firstHalfComplete?: boolean; finishedCount?: number }
+    | { type: 'PLAYER_LEFT'; playerId: string; playerName?: string; wasHost?: boolean; newHostId?: string; newHostName?: string; players?: PlayerData[]; status?: RoomStatus };
 
 export class RoomDurableObject extends DurableObject {
     private roomStatus: RoomStatus = 'lobby';
@@ -228,20 +229,28 @@ export class RoomDurableObject extends DurableObject {
                         }
                     }
 
+                    const now = Date.now();
+                    const countdownSeconds = 3;
+                    const startAt = now + 3500;
+
                     this.broadcast({
                         type: 'RACE_COUNTDOWN',
-                        countdownSeconds: 3,
+                        countdownSeconds,
                         round,
+                        startAt,
+                        serverTime: now,
                     });
 
                     // Countdown timer
+                    const delayMs = Math.max(0, startAt - Date.now());
                     setTimeout(() => {
                         this.roomStatus = 'racing';
                         this.broadcast({
                             type: 'RACE_STARTED',
                             round,
+                            startAt,
                         });
-                    }, 3000);
+                    }, delayMs);
                     break;
                 }
 
@@ -322,32 +331,39 @@ export class RoomDurableObject extends DurableObject {
 
         const remaining = this.getAllPlayers();
         let newHostId: string | undefined;
+        let newHostName: string | undefined;
+        const wasHost = leavingPlayer?.isHost === true;
 
         // If host left, assign new host
-        if (leavingPlayer?.isHost && remaining.length > 0) {
+        if (wasHost && remaining.length > 0) {
             const nextWs = this.ctx.getWebSockets().find(s => s !== ws);
             if (nextWs) {
                 const hostData = nextWs.deserializeAttachment() as PlayerData | null;
                 if (hostData) {
                     hostData.isHost = true;
                     newHostId = hostData.id;
+                    newHostName = hostData.name;
                     nextWs.serializeAttachment(hostData);
                 }
             }
         }
 
+        const remainingPlayers = this.getAllPlayers();
+
         this.broadcast({
             type: 'PLAYER_LEFT',
-            playerId: leavingPlayer?.id,
+            playerId: leavingPlayer?.id || '',
             playerName: leavingPlayer?.name || 'Piloto',
-            players: this.getAllPlayers(),
+            wasHost,
             newHostId,
+            newHostName,
+            players: remainingPlayers,
             status: this.roomStatus,
         });
 
         this.broadcast({
             type: 'ROOM_UPDATE',
-            players: this.getAllPlayers(),
+            players: remainingPlayers,
             status: this.roomStatus,
             leftPlayerId: leavingPlayer?.id,
         });
