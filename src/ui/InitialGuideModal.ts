@@ -75,10 +75,8 @@ export class InitialGuideModal {
             fontSize: '11px',
             fontFamily: "'Outfit', sans-serif",
             fontStyle: 'bold',
-            color: '#B45309',
-            resolution: 2
+            color: '#B45309'
         }).setOrigin(0.5);
-        badgeText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
         this.cardContainer.add(badgeText);
 
         curY += badgeH + 10;
@@ -93,11 +91,9 @@ export class InitialGuideModal {
                 fontFamily: "'Press Start 2P', monospace",
                 color: isRace ? '#0284C7' : '#16A34A',
                 align: 'center',
-                padding: { top: 4, bottom: 4 },
-                resolution: 2
+                padding: { top: 4, bottom: 4 }
             }
         ).setOrigin(0.5, 0);
-        titleText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
         this.cardContainer.add(titleText);
 
         curY += 24;
@@ -110,11 +106,9 @@ export class InitialGuideModal {
                 fontSize: '12px',
                 fontFamily: "'Outfit', sans-serif",
                 color: '#64748B',
-                align: 'center',
-                resolution: 2
+                align: 'center'
             }
         ).setOrigin(0.5, 0);
-        subtitleText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
         this.cardContainer.add(subtitleText);
 
         curY += 24;
@@ -191,11 +185,9 @@ export class InitialGuideModal {
                 fontSize: '12px',
                 fontFamily: "'Outfit', sans-serif",
                 fontStyle: 'bold',
-                color: '#D97706',
-                resolution: 2
+                color: '#D97706'
             }
         ).setOrigin(0.5, 0);
-        this.countdownText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
         this.cardContainer.add(this.countdownText);
 
         curY += 20;
@@ -244,10 +236,8 @@ export class InitialGuideModal {
             fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A',
-            padding: { top: 4, bottom: 4 },
-            resolution: 2
+            padding: { top: 4, bottom: 4 }
         }).setOrigin(0.5);
-        btnText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
         this.cardContainer.add(btnText);
 
         const hitZone = this.scene.add.zone(cardW / 2, btnY + btnH / 2, btnW, btnH)
@@ -304,20 +294,16 @@ export class InitialGuideModal {
             fontSize: '11px',
             fontFamily: "'Outfit', sans-serif",
             fontStyle: 'bold',
-            color: titleColor,
-            resolution: 2
+            color: titleColor
         });
-        titleText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
 
         const bodyText = this.scene.add.text(x + padding, y + 26, lines.join('\n'), {
             fontSize: '12px',
             fontFamily: "'Outfit', sans-serif",
             color: '#1E293B',
             lineSpacing: 4,
-            wordWrap: { width: w - padding * 2, useAdvancedWrap: true },
-            resolution: 2
+            wordWrap: { width: w - padding * 2, useAdvancedWrap: true }
         });
-        bodyText.texture.setFilter(Phaser.Textures.FilterMode.LINEAR);
 
         const totalH = Math.max(68, Math.round(bodyText.height + 36));
 

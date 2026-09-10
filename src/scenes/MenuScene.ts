@@ -14,8 +14,13 @@ export class MenuScene extends Scene {
     private itemSprite!: Phaser.GameObjects.Sprite;
     private instructionsText!: Phaser.GameObjects.Text;
 
+    private selectedStage: number = 1;
     private startBtnBg!: Phaser.GameObjects.Graphics;
     private startBtnHitZone!: Phaser.GameObjects.Zone;
+    private startBtnText!: Phaser.GameObjects.Text;
+
+    private tournamentBtnBg!: Phaser.GameObjects.Graphics;
+    private tournamentBtnHitZone!: Phaser.GameObjects.Zone;
 
     private multiBtnBg!: Phaser.GameObjects.Graphics;
     private multiBtnHitZone!: Phaser.GameObjects.Zone;
@@ -32,6 +37,7 @@ export class MenuScene extends Scene {
 
     create(): void {
         const { width, height } = this.scale;
+        this.cameras.main.setRoundPixels(true);
         (window as any).__gameActive = false;
 
         // Generate clean random default name
@@ -166,17 +172,17 @@ export class MenuScene extends Scene {
             wordWrap: { width: cardW - 32, useAdvancedWrap: true }
         }).setOrigin(0.5);
 
-        // ── 5. Primary Start Button ──
-        const btnY = 525;
-        const btnW = 300;
-        const btnH = 48;
+        // ── 5. Primary Action: Play Selected Stage Solo ──
+        const btnW = 340;
         const btnX = width / 2 - btnW / 2;
 
+        const btnY = 514;
+        const btnH = 48;
         this.startBtnBg = this.add.graphics();
         this.renderStartBtn(false, btnX, btnY, btnW, btnH);
 
-        this.add.text(width / 2, btnY + btnH / 2 - 1, 'INICIAR TORNEO (SOLO · R1)', {
-            fontSize: '9px',
+        this.startBtnText = this.add.text(width / 2, btnY + btnH / 2 - 1, 'JUGAR ETAPA 1: EOLICA (SOLO)', {
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
         }).setOrigin(0.5);
@@ -187,16 +193,36 @@ export class MenuScene extends Scene {
 
         this.startBtnHitZone.on('pointerover', () => this.renderStartBtn(true, btnX, btnY, btnW, btnH));
         this.startBtnHitZone.on('pointerout', () => this.renderStartBtn(false, btnX, btnY, btnW, btnH));
-        this.startBtnHitZone.on('pointerdown', () => this.launchTournamentSolo());
+        this.startBtnHitZone.on('pointerdown', () => this.launchStageSolo(this.selectedStage));
 
-        // ── 6. Multiplayer Room Button ──
-        const multiBtnY = 585;
-        const multiBtnH = 42;
+        // ── 6. Secondary Action: Full 4-Round Eliminatory Tournament ──
+        const tourBtnY = 570;
+        const tourBtnH = 40;
+        this.tournamentBtnBg = this.add.graphics();
+        this.renderTournamentBtn(false, btnX, tourBtnY, btnW, tourBtnH);
+
+        this.add.text(width / 2, tourBtnY + tourBtnH / 2 - 1, 'TORNEO COMPLETO (SOLO · R1-R4)', {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#FFFFFF'
+        }).setOrigin(0.5);
+
+        this.tournamentBtnHitZone = this.add.zone(width / 2, tourBtnY + tourBtnH / 2, btnW, tourBtnH)
+            .setOrigin(0.5)
+            .setInteractive({ useHandCursor: true });
+
+        this.tournamentBtnHitZone.on('pointerover', () => this.renderTournamentBtn(true, btnX, tourBtnY, btnW, tourBtnH));
+        this.tournamentBtnHitZone.on('pointerout', () => this.renderTournamentBtn(false, btnX, tourBtnY, btnW, tourBtnH));
+        this.tournamentBtnHitZone.on('pointerdown', () => this.launchTournamentSolo());
+
+        // ── 7. Multiplayer Room Button ──
+        const multiBtnY = 618;
+        const multiBtnH = 40;
         this.multiBtnBg = this.add.graphics();
         this.renderMultiBtn(false, btnX, multiBtnY, btnW, multiBtnH);
 
         this.add.text(width / 2, multiBtnY + multiBtnH / 2 - 1, 'SALA MULTIJUGADOR (50 PILOTOS)', {
-            fontSize: '9px',
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF'
         }).setOrigin(0.5);
@@ -209,11 +235,34 @@ export class MenuScene extends Scene {
         this.multiBtnHitZone.on('pointerout', () => this.renderMultiBtn(false, btnX, multiBtnY, btnW, multiBtnH));
         this.multiBtnHitZone.on('pointerdown', () => this.openMultiplayerModal());
 
-        // Controls Hint
-        this.add.text(width / 2, 650, 'CONTROLES: [ < ] [ > ] O TECLAS [ A ] [ D ] · RATON O TACTIL', {
-            fontSize: '9px',
+        // ── 8. Controls Reference Box (Fully Visible, No Cutoff) ──
+        const ctrlCardY = 666;
+        const ctrlCardH = 68;
+        const ctrlCardW = width - 48;
+        const ctrlCardX = 24;
+
+        const ctrlGfx = this.add.graphics();
+        ctrlGfx.fillStyle(0xFFFFFF, 1);
+        ctrlGfx.fillRect(ctrlCardX, ctrlCardY, ctrlCardW, ctrlCardH);
+        ctrlGfx.lineStyle(1, 0xCBD5E1, 1);
+        ctrlGfx.strokeRect(ctrlCardX, ctrlCardY, ctrlCardW, ctrlCardH);
+
+        this.add.text(width / 2, ctrlCardY + 14, 'CONTROLES DE PILOTAJE', {
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
+        }).setOrigin(0.5);
+
+        this.add.text(width / 2, ctrlCardY + 34, 'TECLADO: [ A ] [ D ]  O  FLECHAS [ < ] [ > ]', {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#0F172A'
+        }).setOrigin(0.5);
+
+        this.add.text(width / 2, ctrlCardY + 52, 'TACTIL / RATON: TOCA O ARRASTRA A LOS LADOS', {
+            fontSize: '8px',
+            fontFamily: "'Press Start 2P', monospace",
+            color: '#0284C7'
         }).setOrigin(0.5);
 
         // Initial preview
@@ -236,6 +285,16 @@ export class MenuScene extends Scene {
         this.startBtnBg.fillRect(x + 2, y + 2, w - 4, h - 4);
         this.startBtnBg.fillStyle(0xB45309, 1);
         this.startBtnBg.fillRect(x + 2, y + h - 6, w - 4, 4);
+    }
+
+    private renderTournamentBtn(hover: boolean, x: number, y: number, w: number, h: number): void {
+        this.tournamentBtnBg.clear();
+        this.tournamentBtnBg.fillStyle(0x0F172A, 1);
+        this.tournamentBtnBg.fillRect(x, y, w, h);
+        this.tournamentBtnBg.fillStyle(hover ? 0x16A34A : 0x15803D, 1);
+        this.tournamentBtnBg.fillRect(x + 2, y + 2, w - 4, h - 4);
+        this.tournamentBtnBg.fillStyle(0x14532D, 1);
+        this.tournamentBtnBg.fillRect(x + 2, y + h - 6, w - 4, 4);
     }
 
     private renderMultiBtn(hover: boolean, x: number, y: number, w: number, h: number): void {
@@ -293,14 +352,31 @@ export class MenuScene extends Scene {
             `• DESCARBONIZACIÓN: ~${config.co2Factor} kg CO2/kWh evitado`
         ].join('\n');
         this.instructionsText.setText(instructions);
+
+        this.selectedStage = round;
+        const stageNames = ['EOLICA', 'SOLAR', 'HIDRO', 'FINAL'];
+        if (this.startBtnText) {
+            this.startBtnText.setText(`JUGAR ETAPA ${round}: ${stageNames[round - 1]} (SOLO)`);
+        }
+    }
+
+    private launchStageSolo(round: number): void {
+        this.startBtnHitZone.disableInteractive();
+        if (this.tournamentBtnHitZone) this.tournamentBtnHitZone.disableInteractive();
+        this.cameras.main.fadeOut(180, 241, 245, 249);
+
+        this.time.delayedCall(180, () => {
+            this.scene.start('MainScene', { round, singleMapMode: true, skipGuide: false });
+        });
     }
 
     private launchTournamentSolo(): void {
         this.startBtnHitZone.disableInteractive();
+        if (this.tournamentBtnHitZone) this.tournamentBtnHitZone.disableInteractive();
         this.cameras.main.fadeOut(180, 241, 245, 249);
 
         this.time.delayedCall(180, () => {
-            this.scene.start('MainScene', { round: 1, skipGuide: false });
+            this.scene.start('MainScene', { round: 1, singleMapMode: false, skipGuide: false });
         });
     }
 

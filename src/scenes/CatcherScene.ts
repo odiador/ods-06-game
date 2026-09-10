@@ -47,6 +47,7 @@ export class CatcherScene extends Scene {
 
     create(): void {
         const { width, height } = this.scale;
+        this.cameras.main.setRoundPixels(true);
         this.kwh = 0;
         this.lives = 5;
         this.combo = 0;
@@ -203,8 +204,7 @@ export class CatcherScene extends Scene {
         this.livesText = this.add.text(width - 20, 28, '■ ■ ■ ■ ■', {
             fontSize: '11px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#DC2626',
-            resolution: 2
+            color: '#DC2626'
         }).setOrigin(1, 0).setDepth(101);
         this.hudGroup.add(this.livesText);
 

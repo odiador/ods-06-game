@@ -80,11 +80,13 @@ export class MainScene extends Scene {
     private startLineObj?: Phaser.GameObjects.Sprite;
     private idleGliderTween?: Phaser.Tweens.Tween;
 
+    private singleMapMode: boolean = false;
+
     constructor() {
         super('MainScene');
     }
 
-    init(data?: { round?: number; skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number }): void {
+    init(data?: { round?: number; skipGuide?: boolean; multiplayer?: boolean; roomCode?: string; countdownSeconds?: number; singleMapMode?: boolean }): void {
         this.round = data?.round && TOURNAMENT_ROUNDS[data.round] ? data.round : 1;
         this.currentCircuit = TOURNAMENT_ROUNDS[this.round];
         this.distanceTraveled = 0;
@@ -113,11 +115,13 @@ export class MainScene extends Scene {
             this.totalTournamentPlayers = this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6;
         }
         this.qualifiedCutoff = this.round === 4 ? 3 : Math.ceil(this.totalTournamentPlayers * (this.currentCircuit.qualifyCutoffPct || 0.5));
+        this.singleMapMode = data?.singleMapMode === true;
         (window as any).__gameActive = false;
     }
 
     create(): void {
         const { width, height } = this.scale;
+        this.cameras.main.setRoundPixels(true);
         this.raceStartTime = this.time.now;
         SoundFX.unlock();
 
@@ -250,8 +254,7 @@ export class MainScene extends Scene {
                 fontSize: '9px',
                 fontFamily: "'Silkscreen', monospace",
                 color: '#38BDF8',
-                lineSpacing: 3,
-                resolution: 3
+                lineSpacing: 3
             }).setDepth(151);
 
             EventBus.on(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
@@ -489,8 +492,7 @@ export class MainScene extends Scene {
                     fontFamily: "'Silkscreen', monospace",
                     color: '#FFFFFF',
                     backgroundColor: '#0F172A',
-                    padding: { left: 4, right: 4, top: 2, bottom: 2 },
-                    resolution: 3
+                    padding: { left: 4, right: 4, top: 2, bottom: 2 }
                 }).setOrigin(0.5);
 
                 const indicator = this.add.graphics();
@@ -888,7 +890,8 @@ export class MainScene extends Scene {
                 multiplayer: this.isMultiplayer,
                 rank: finalRank || 1,
                 totalPlayers: this.totalTournamentPlayers,
-                podium: podiumData
+                podium: podiumData,
+                singleMapMode: this.singleMapMode
             });
         });
     }
@@ -916,8 +919,7 @@ export class MainScene extends Scene {
         const titleText = this.add.text(0, -boxH / 2 + 18, 'SEMAFORO DE SALIDA', {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#94A3B8',
-            resolution: 3
+            color: '#94A3B8'
         }).setOrigin(0.5);
 
         const lightGfx = this.add.graphics();
@@ -956,8 +958,7 @@ export class MainScene extends Scene {
         const countdownLabel = this.add.text(0, 38, String(initialSeconds), {
             fontSize: '26px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#EF4444',
-            resolution: 3
+            color: '#EF4444'
         }).setOrigin(0.5);
 
         container.add([gantry, titleText, lightGfx, countdownLabel]);

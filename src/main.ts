@@ -111,8 +111,10 @@ function initGame(): void {
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
+    document.addEventListener('DOMContentLoaded', () => {
+        document.fonts.ready.then(initGame);
+    });
 } else {
-    initGame();
+    document.fonts.ready.then(initGame);
 }
 

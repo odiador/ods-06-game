@@ -16,6 +16,7 @@ export interface PodiumEntry {
 interface WinSceneData {
     mode?: GameModeId;
     round?: number;
+    singleMapMode?: boolean;
     time: string;
     kwh: number;
     distance?: number;
@@ -26,6 +27,7 @@ interface WinSceneData {
 }
 
 export class WinScene extends Scene {
+    private singleMapMode: boolean = false;
     private round: number = 1;
     private isQualified: boolean = false;
     private cutoffRank: number = 25;
@@ -58,6 +60,7 @@ export class WinScene extends Scene {
     }
 
     init(data: WinSceneData): void {
+        this.singleMapMode = data.singleMapMode === true;
         this.round = data.round || 1;
         this.finalTime = data.time || '45.0';
         this.finalKwh = Math.max(1, data.kwh || 120);
@@ -79,6 +82,7 @@ export class WinScene extends Scene {
 
     create(): void {
         const { width, height } = this.scale;
+        this.cameras.main.setRoundPixels(true);
         (window as any).__gameActive = false;
 
         // ── 1. Clean Light Mode Background ──
@@ -97,7 +101,14 @@ export class WinScene extends Scene {
         let bannerTitle = '';
         let bannerColor = '#15803D';
 
-        if (this.round < 4) {
+        const currentRoundCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
+
+        if (this.singleMapMode) {
+            bannerTitle = `CIRCUITO COMPLETADO · ${currentRoundCfg.name}`;
+            bannerColor = '#0284C7';
+            bannerBgColor = 0xE0F2FE;
+            bannerBorderColor = 0x0284C7;
+        } else if (this.round < 4) {
             if (this.isQualified) {
                 bannerTitle = `¡CLASIFICASTE A RONDA ${this.round + 1}! (${this.rank}° DE ${this.totalPlayers})`;
                 bannerColor = '#15803D';
@@ -141,12 +152,10 @@ export class WinScene extends Scene {
         this.bannerTextObj = this.add.text(width / 2, bannerY + 18, bannerTitle, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: bannerColor,
-            resolution: 3
+            color: bannerColor
         }).setOrigin(0.5);
 
         // ── 3. Animated Trophy / Vehicle Mascot ──
-        const currentRoundCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
         const nextRoundCfg = this.round < 4 ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
         const spriteKey = (this.isQualified && nextRoundCfg) ? nextRoundCfg.vehicleKey : currentRoundCfg.vehicleKey;
 
@@ -163,7 +172,9 @@ export class WinScene extends Scene {
             ease: 'Sine.easeInOut'
         });
 
-        const subTitle = this.round < 4
+        const subTitle = this.singleMapMode
+            ? `MODO ETAPA INDIVIDUAL · TIEMPO: ${this.finalTime}s`
+            : this.round < 4
             ? (this.isQualified
                 ? `¡PREPARATE PARA ${nextRoundCfg?.name || 'LA SIGUIENTE RONDA'}!`
                 : `RONDA ${this.round}/4 · ${currentRoundCfg.name}`)
@@ -172,8 +183,7 @@ export class WinScene extends Scene {
         this.subTitleText = this.add.text(width / 2, 138, subTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0284C7',
-            resolution: 3
+            color: '#0284C7'
         }).setOrigin(0.5);
 
         // Multiplayer real-time finish, race start & disconnect listeners
@@ -305,29 +315,49 @@ export class WinScene extends Scene {
             }
         } else {
             // Solo Mode
-            currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
-            renderBtn(false);
-            if (this.round < 4 && this.isQualified) {
-                const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
-                btnText.setText(`AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`);
-            } else if (this.round < 4) {
-                btnText.setText('REINTENTAR TORNEO (R1)');
-            } else {
-                btnText.setText('NUEVO TORNEO (DESDE R1)');
-            }
-            hitZone.setInteractive({ useHandCursor: true });
-            hitZone.on('pointerover', () => renderBtn(true));
-            hitZone.on('pointerout', () => renderBtn(false));
-            hitZone.on('pointerdown', () => {
-                hitZone.disableInteractive();
-                this.cameras.main.fadeOut(180, 241, 245, 249);
-                this.time.delayedCall(180, () => {
-                    this.scene.start('MainScene', {
-                        round: this.round < 4 && this.isQualified ? this.round + 1 : 1,
-                        skipGuide: true
+            if (this.singleMapMode) {
+                currentBtnColor = 'amber';
+                renderBtn(false);
+                btnText.setText(`REINTENTAR ETAPA (R${this.round})`);
+                hitZone.setInteractive({ useHandCursor: true });
+                hitZone.on('pointerover', () => renderBtn(true));
+                hitZone.on('pointerout', () => renderBtn(false));
+                hitZone.on('pointerdown', () => {
+                    hitZone.disableInteractive();
+                    this.cameras.main.fadeOut(180, 241, 245, 249);
+                    this.time.delayedCall(180, () => {
+                        this.scene.start('MainScene', {
+                            round: this.round,
+                            singleMapMode: true,
+                            skipGuide: true
+                        });
                     });
                 });
-            });
+            } else {
+                currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
+                renderBtn(false);
+                if (this.round < 4 && this.isQualified) {
+                    const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
+                    btnText.setText(`AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`);
+                } else if (this.round < 4) {
+                    btnText.setText('REINTENTAR TORNEO (R1)');
+                } else {
+                    btnText.setText('NUEVO TORNEO (DESDE R1)');
+                }
+                hitZone.setInteractive({ useHandCursor: true });
+                hitZone.on('pointerover', () => renderBtn(true));
+                hitZone.on('pointerout', () => renderBtn(false));
+                hitZone.on('pointerdown', () => {
+                    hitZone.disableInteractive();
+                    this.cameras.main.fadeOut(180, 241, 245, 249);
+                    this.time.delayedCall(180, () => {
+                        this.scene.start('MainScene', {
+                            round: this.round < 4 && this.isQualified ? this.round + 1 : 1,
+                            skipGuide: true
+                        });
+                    });
+                });
+            }
         }
 
         // ── 8. Secondary Action: MENU PRINCIPAL ──
@@ -401,12 +431,11 @@ export class WinScene extends Scene {
         pCard.lineStyle(1.5, 0xF59E0B, 1);
         pCard.strokeRect(cardX, podiumCardY, cardW, podiumCardH);
 
-        const cardTitle = this.round === 4 ? 'PODIO FINAL DE CAMPEONATO (TOP 3)' : 'PODIO DE SALA (TOP 3)';
+        const cardTitle = this.singleMapMode ? `PODIO ETAPA ${this.round} (TOP 3)` : (this.round === 4 ? 'PODIO FINAL DE CAMPEONATO (TOP 3)' : 'PODIO DE SALA (TOP 3)');
         this.add.text(cardX + 16, podiumCardY + 12, cardTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#B45309',
-            resolution: 3
+            color: '#B45309'
         });
 
         const p1 = this.podium[0] || (this.rank === 1 ? { name: 'TÚ', rank: 1, timeSec: this.finalTime } : { name: 'Oro', rank: 1, timeSec: this.finalTime });
@@ -437,8 +466,7 @@ export class WinScene extends Scene {
             this.add.text(ped.x + ped.w / 2, py + ped.h / 2, ped.tag, {
                 fontSize: '13px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#FFFFFF',
-                resolution: 3
+                color: '#FFFFFF'
             }).setOrigin(0.5);
 
             // Pilot name above pedestal
@@ -447,8 +475,7 @@ export class WinScene extends Scene {
             const nameText = this.add.text(ped.x + ped.w / 2, py - 20, nameLabel, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: nameColor,
-                resolution: 3
+                color: nameColor
             }).setOrigin(0.5);
 
             // Time above pedestal
@@ -456,8 +483,7 @@ export class WinScene extends Scene {
             const timeText = this.add.text(ped.x + ped.w / 2, py - 8, timeLabel, {
                 fontSize: '8px',
                 fontFamily: "'Silkscreen', monospace",
-                color: '#64748B',
-                resolution: 3
+                color: '#64748B'
             }).setOrigin(0.5);
 
             this.pedestalSlots.push({
@@ -477,8 +503,7 @@ export class WinScene extends Scene {
                 fontFamily: "'Press Start 2P', monospace",
                 color: '#0284C7',
                 backgroundColor: '#F0F9FF',
-                padding: { left: 8, right: 8, top: 4, bottom: 4 },
-                resolution: 3
+                padding: { left: 8, right: 8, top: 4, bottom: 4 }
             }).setOrigin(0.5);
         }
 
@@ -495,8 +520,7 @@ export class WinScene extends Scene {
         this.add.text(cardX + 16, cardY + 14, `TELEMETRIA TORNEO · RONDA ${this.round}/4`, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#64748B',
-            resolution: 3
+            color: '#64748B'
         });
 
         const statusStr = this.round === 4
@@ -517,15 +541,13 @@ export class WinScene extends Scene {
             this.add.text(cardX + 16, yPos, row.label, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#64748B',
-                resolution: 3
+                color: '#64748B'
             });
 
             const valText = this.add.text(cardX + cardW - 16, yPos, row.val, {
                 fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: row.color,
-                resolution: 3
+                color: row.color
             }).setOrigin(1, 0);
 
             if (row.label === 'POSICION') {
@@ -546,15 +568,13 @@ export class WinScene extends Scene {
         this.add.text(cardX + 16, lessonCardY + 14, 'DATO ODS 7 E INGENIERIA', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0284C7',
-            resolution: 3
+            color: '#0284C7'
         });
 
         const cycleBtn = this.add.text(cardX + cardW - 16, lessonCardY + 14, '[ OTRO DATO ]', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#D97706',
-            resolution: 3
+            color: '#D97706'
         }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
 
         cycleBtn.on('pointerover', () => cycleBtn.setColor('#B45309'));
@@ -570,8 +590,7 @@ export class WinScene extends Scene {
         this.lessonTitleText = this.add.text(cardX + 16, lessonCardY + 38, initialLesson.title, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A',
-            resolution: 3
+            color: '#0F172A'
         });
 
         this.lessonBodyText = this.add.text(cardX + 16, lessonCardY + 56, initialLesson.text, {
@@ -579,8 +598,7 @@ export class WinScene extends Scene {
             fontFamily: "'Outfit', sans-serif",
             color: '#475569',
             lineSpacing: 4,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-            resolution: 3
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
         });
     }
 
@@ -601,8 +619,7 @@ export class WinScene extends Scene {
         this.add.text(cardX + 16, cardY + 14, `BALANCE RONDA ${this.round}/4 · ${currentCfg.name}`, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#64748B',
-            resolution: 3
+            color: '#64748B'
         });
 
         const statusLabel = this.round === 4
@@ -623,15 +640,13 @@ export class WinScene extends Scene {
             this.add.text(cardX + 16, yPos, row.label, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#64748B',
-                resolution: 3
+                color: '#64748B'
             });
 
             this.add.text(cardX + cardW - 16, yPos, row.val, {
                 fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: row.color,
-                resolution: 3
+                color: row.color
             }).setOrigin(1, 0);
         });
 
@@ -649,8 +664,7 @@ export class WinScene extends Scene {
             this.add.text(cardX + 16, nextCardY + 14, `PROXIMA ETAPA: ${nextCfg.stageName}`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#15803D',
-                resolution: 3
+                color: '#15803D'
             });
 
             const divider1 = this.add.graphics();
@@ -660,8 +674,7 @@ export class WinScene extends Scene {
             this.add.text(cardX + 16, nextCardY + 38, `• CIRCUITO: ${nextCfg.name}`, {
                 fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#0F172A',
-                resolution: 3
+                color: '#0F172A'
             });
 
             this.add.text(cardX + 16, nextCardY + 54, nextCfg.description, {
@@ -669,30 +682,26 @@ export class WinScene extends Scene {
                 fontFamily: "'Outfit', sans-serif",
                 color: '#475569',
                 lineSpacing: 3,
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
 
             this.add.text(cardX + 16, nextCardY + 98, `• REGLA DE CORTE:`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#D97706',
-                resolution: 3
+                color: '#D97706'
             });
 
             this.add.text(cardX + 16, nextCardY + 114, nextCfg.cutoffDescription || 'Clasifica el top 50%', {
                 fontSize: '12px',
                 fontFamily: "'Outfit', sans-serif",
                 color: '#334155',
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
         } else if (this.round < 4) {
             this.add.text(cardX + 16, nextCardY + 14, `CORTE ELIMINATORIO ODS 7`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#DC2626',
-                resolution: 3
+                color: '#DC2626'
             });
 
             const divider1 = this.add.graphics();
@@ -704,8 +713,7 @@ export class WinScene extends Scene {
                 fontFamily: "'Outfit', sans-serif",
                 color: '#475569',
                 lineSpacing: 4,
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
 
             this.add.text(cardX + 16, nextCardY + 95, `Tu posición fue ${this.rank}°, pero el corte era el puesto ${this.cutoffRank}°. ¡Aprovecha mejor los turbos y evita trompos!`, {
@@ -713,15 +721,13 @@ export class WinScene extends Scene {
                 fontFamily: "'Outfit', sans-serif",
                 color: '#0F172A',
                 lineSpacing: 4,
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
         } else {
             this.add.text(cardX + 16, nextCardY + 14, `GRAN PREMIO ODS 7 CULMINADO`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
-                color: '#B45309',
-                resolution: 3
+                color: '#B45309'
             });
 
             const divider1 = this.add.graphics();
@@ -734,8 +740,7 @@ export class WinScene extends Scene {
                 color: '#15803D',
                 fontStyle: 'bold',
                 lineSpacing: 4,
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
 
             this.add.text(cardX + 16, nextCardY + 90, `Superaste Eólica, Solar, Hidroeléctrica y la Red Inteligente. ¡Eres pionero de la energía sostenible!`, {
@@ -743,8 +748,7 @@ export class WinScene extends Scene {
                 fontFamily: "'Outfit', sans-serif",
                 color: '#475569',
                 lineSpacing: 4,
-                wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-                resolution: 3
+                wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
         }
 
@@ -761,15 +765,13 @@ export class WinScene extends Scene {
         this.add.text(cardX + 16, lessonCardY + 14, 'DATO ODS 7 E INGENIERIA', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0284C7',
-            resolution: 3
+            color: '#0284C7'
         });
 
         const cycleBtn = this.add.text(cardX + cardW - 16, lessonCardY + 14, '[ OTRO DATO ]', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#D97706',
-            resolution: 3
+            color: '#D97706'
         }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
 
         cycleBtn.on('pointerover', () => cycleBtn.setColor('#B45309'));
@@ -785,8 +787,7 @@ export class WinScene extends Scene {
         this.lessonTitleText = this.add.text(cardX + 16, lessonCardY + 38, initialLesson.title, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#0F172A',
-            resolution: 3
+            color: '#0F172A'
         });
 
         this.lessonBodyText = this.add.text(cardX + 16, lessonCardY + 56, initialLesson.text, {
@@ -794,8 +795,7 @@ export class WinScene extends Scene {
             fontFamily: "'Outfit', sans-serif",
             color: '#475569',
             lineSpacing: 4,
-            wordWrap: { width: cardW - 32, useAdvancedWrap: true },
-            resolution: 3
+            wordWrap: { width: cardW - 32, useAdvancedWrap: true }
         });
     }
 
@@ -889,8 +889,7 @@ export class WinScene extends Scene {
         const text = this.add.text(0, 0, msg, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: timeSec === 'DESCONECTADO' ? '#EF4444' : '#38BDF8',
-            resolution: 3
+            color: timeSec === 'DESCONECTADO' ? '#EF4444' : '#38BDF8'
         }).setOrigin(0.5);
         toast.add(text);
 

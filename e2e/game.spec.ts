@@ -378,4 +378,85 @@ test.describe('ODS 7 Clean Energy Game - E2E Suite', () => {
         });
         expect(isPauseOnBlurActive).toBe(true);
     });
+
+    test('allows selecting any stage from tabs to play directly in single-map mode', async ({ page }) => {
+        const errors: string[] = [];
+        page.on('pageerror', (err) => errors.push(err.message));
+
+        await page.goto('/');
+        const canvas = page.locator('#phaser-container canvas');
+        await expect(canvas).toBeVisible({ timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        // 1. Select Stage 3 (Hidro) via MenuScene
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const menuScene = game?.scene.getScene('MenuScene') as any;
+            if (menuScene) {
+                menuScene.selectStagePreview(3);
+            }
+        });
+        await page.waitForTimeout(300);
+
+        // Verify button text updated to Stage 3
+        const btnText = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const menuScene = game?.scene.getScene('MenuScene') as any;
+            return menuScene?.startBtnText?.text;
+        });
+        expect(btnText).toContain('ETAPA 3');
+
+        // 2. Launch single-map mode directly on Round 3
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const menuScene = game?.scene.getScene('MenuScene') as any;
+            if (menuScene) {
+                menuScene.launchStageSolo(3);
+            }
+        });
+        await page.waitForTimeout(600);
+
+        // Verify MainScene is running on Round 3 in singleMapMode
+        const mainSceneState = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('MainScene') as any;
+            return {
+                round: scene?.round,
+                singleMapMode: scene?.singleMapMode
+            };
+        });
+        expect(mainSceneState.round).toBe(3);
+        expect(mainSceneState.singleMapMode).toBe(true);
+
+        // 3. Complete race and verify WinScene displays singleMapMode layout
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.stop('MainScene');
+                game.scene.start('WinScene', {
+                    round: 3,
+                    rank: 1,
+                    totalPlayers: 12,
+                    time: '42.1',
+                    kwh: 150,
+                    singleMapMode: true
+                });
+            }
+        });
+        await page.waitForTimeout(400);
+
+        const winSceneState = await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const scene = game?.scene.getScene('WinScene') as any;
+            return {
+                singleMapMode: scene?.singleMapMode,
+                bannerText: scene?.bannerTextObj?.text
+            };
+        });
+        expect(winSceneState.singleMapMode).toBe(true);
+        expect(winSceneState.bannerText).toContain('CIRCUITO COMPLETADO');
+
+        expect(errors).toHaveLength(0);
+    });
 });
+
