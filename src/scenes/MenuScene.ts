@@ -389,7 +389,7 @@ export class MenuScene extends Scene {
         badgeGfx.strokeRect(width / 2 - 140, cardY + 16, 280, 22);
         this.multiplayerModal.add(badgeGfx);
 
-        const badgeText = this.add.text(width / 2, cardY + 27, 'MULTIPLAYER ONLINE · PUERTO 5175', {
+        const badgeText = this.add.text(width / 2, cardY + 27, 'MULTIPLAYER ONLINE · SALA EN VIVO', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#15803D'
