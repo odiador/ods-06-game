@@ -31,13 +31,15 @@ export class TrackObstacle extends Physics.Arcade.Sprite {
     }
 
     public hit(): void {
+        if (this.isHit) return;
         this.isHit = true;
+        this.disableBody(true, false);
         this.scene.tweens.add({
             targets: this,
             scaleX: 0.4,
             scaleY: 0.4,
             alpha: 0,
-            duration: 250,
+            duration: 200,
             onComplete: () => this.destroy()
         });
     }

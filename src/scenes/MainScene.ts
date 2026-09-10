@@ -160,23 +160,23 @@ export class MainScene extends Scene {
 
         // ── 6. Multiplayer Widget & Network Sync ──
         if (this.isMultiplayer) {
-            const sbX = 16;
+            const sbX = 14;
             const sbY = 96;
-            const sbW = 160;
-            const sbH = 56;
+            const sbW = 184;
+            const sbH = 90;
 
             this.multiScoreboardBg = this.add.graphics().setDepth(150);
-            this.multiScoreboardBg.fillStyle(0x0F172A, 0.85);
+            this.multiScoreboardBg.fillStyle(0x0F172A, 0.90);
             this.multiScoreboardBg.fillRect(sbX, sbY, sbW, sbH);
             this.multiScoreboardBg.lineStyle(1.5, 0x0284C7, 1);
             this.multiScoreboardBg.strokeRect(sbX, sbY, sbW, sbH);
 
-            this.multiScoreboardText = this.add.text(sbX + 8, sbY + 6, `SALA: ${this.roomCode || 'ONLINE'}\nEN VIVO`, {
-                fontSize: '8px',
-                fontFamily: "'Press Start 2P', monospace",
+            this.multiScoreboardText = this.add.text(sbX + 8, sbY + 6, `SALA: ${this.roomCode || 'ONLINE'}\nCONECTANDO...`, {
+                fontSize: '9px',
+                fontFamily: "'Silkscreen', monospace",
                 color: '#38BDF8',
-                lineSpacing: 4,
-                resolution: 2
+                lineSpacing: 3,
+                resolution: 3
             }).setDepth(151);
 
             EventBus.on(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
@@ -234,15 +234,10 @@ export class MainScene extends Scene {
         this.rightBorderTile.tilePositionY -= baseScroll;
 
         // Player Controls
+        const touch = (window as any).__touchControls;
         let moveX = 0;
-        if (this.cursors?.left.isDown || this.keyA?.isDown) moveX = -1;
-        else if (this.cursors?.right.isDown || this.keyD?.isDown) moveX = 1;
-
-        const pointer = (window as any).__globalPointer;
-        if (pointer?.isDown) {
-            const dx = pointer.x - this.glider.x;
-            if (Math.abs(dx) > 10) moveX = Math.sign(dx);
-        }
+        if (this.cursors?.left.isDown || this.keyA?.isDown || touch?.left) moveX = -1;
+        else if (this.cursors?.right.isDown || this.keyD?.isDown || touch?.right) moveX = 1;
 
         if (moveX < 0) this.glider.steerLeft();
         else if (moveX > 0) this.glider.steerRight();
@@ -287,13 +282,15 @@ export class MainScene extends Scene {
             const localGliderY = height - 160;
 
             for (const [, remote] of this.remoteGliders) {
+                if (!remote.container.visible) continue;
+
                 // Smooth interpolation of rival X
-                remote.container.x += (remote.targetX - remote.container.x) * 0.3;
+                remote.container.x += (remote.targetX - remote.container.x) * 0.25;
 
                 // Relative Y based on track distance delta
                 const deltaDist = remote.targetDistance - this.distanceTraveled;
                 const targetY = localGliderY - deltaDist * 2.2;
-                remote.container.y += (targetY - remote.container.y) * 0.3;
+                remote.container.y += (targetY - remote.container.y) * 0.25;
 
                 // Hide if far off screen
                 const isVisible = remote.container.y > -80 && remote.container.y < height + 80;
@@ -305,25 +302,43 @@ export class MainScene extends Scene {
     private handleRemotePlayersState(players: RemotePlayerInfo[]): void {
         if (!this.isMultiplayer) return;
 
-        const activeIds = new Set<string>();
-        let standingsStr = `SALA: ${this.roomCode || 'ONLINE'}\n`;
-
-        // Sort players by distance descending
+        // 1. Leaderboard & Telemetry
         const sorted = [...players].sort((a, b) => b.distance - a.distance);
-        sorted.slice(0, 3).forEach((p, idx) => {
+        const total = sorted.length;
+        const myIdx = sorted.findIndex(p => p.id === networkManager.playerId);
+        const myRank = myIdx !== -1 ? myIdx + 1 : 1;
+
+        let standingsStr = `SALA: ${this.roomCode || 'ONLINE'} (${total}P)\n`;
+        const showCount = Math.min(4, total);
+        for (let i = 0; i < showCount; i++) {
+            const p = sorted[i];
             const isMe = p.id === networkManager.playerId;
             const tag = isMe ? 'TÚ' : p.name.slice(0, 6);
-            standingsStr += `${idx + 1}° ${tag}: ${Math.round(p.distance)}m\n`;
-        });
+            standingsStr += `${i + 1}° ${tag}: ${Math.round(p.distance)}m\n`;
+        }
+        if (myRank > 4) {
+            standingsStr += `..\n${myRank}° TÚ: ${Math.round(this.distanceTraveled)}m\n`;
+        }
 
         if (this.multiScoreboardText) {
             this.multiScoreboardText.setText(standingsStr.trim());
         }
 
-        for (const p of players) {
-            if (p.id === networkManager.playerId) continue;
-            activeIds.add(p.id);
+        // 2. Spatial Culling: exactly 2 ahead and 2 behind
+        const aheadRivals = players
+            .filter(p => p.id !== networkManager.playerId && p.distance >= this.distanceTraveled)
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, 2);
 
+        const behindRivals = players
+            .filter(p => p.id !== networkManager.playerId && p.distance < this.distanceTraveled)
+            .sort((a, b) => b.distance - a.distance)
+            .slice(0, 2);
+
+        const activeRivals = [...aheadRivals, ...behindRivals];
+        const activeIds = new Set<string>(activeRivals.map(r => r.id));
+
+        for (const p of activeRivals) {
             let remote = this.remoteGliders.get(p.id);
             if (!remote) {
                 const container = this.add.container(p.x, -200).setDepth(10);
@@ -331,12 +346,12 @@ export class MainScene extends Scene {
                 sprite.setTint(p.color || 0xF59E0B);
 
                 const nameText = this.add.text(0, -28, p.name, {
-                    fontSize: '8px',
-                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: '9px',
+                    fontFamily: "'Silkscreen', monospace",
                     color: '#FFFFFF',
                     backgroundColor: '#0F172A',
                     padding: { left: 4, right: 4, top: 2, bottom: 2 },
-                    resolution: 2
+                    resolution: 3
                 }).setOrigin(0.5);
 
                 container.add(sprite);
@@ -354,13 +369,13 @@ export class MainScene extends Scene {
 
             remote.targetX = p.x;
             remote.targetDistance = p.distance;
+            remote.container.setVisible(true);
         }
 
-        // Cleanup dropped peers
+        // Hide rivals that are not in the 4-rival active frustum
         for (const [id, remote] of this.remoteGliders) {
             if (!activeIds.has(id)) {
-                remote.container.destroy();
-                this.remoteGliders.delete(id);
+                remote.container.setVisible(false);
             }
         }
     }
@@ -441,6 +456,7 @@ export class MainScene extends Scene {
         obstacleObj: Phaser.GameObjects.GameObject
     ): void {
         const obs = obstacleObj as TrackObstacle;
+        if (obs.isHit || this.glider.isSpinningOut) return;
         obs.hit();
         this.glider.triggerSpinOut();
 
@@ -500,6 +516,16 @@ export class MainScene extends Scene {
             networkManager.finishRace(totalTimeMs, this.cleanKwh);
         }
 
+        let finalRank = networkManager.myFinishRank;
+        if (!finalRank && this.isMultiplayer) {
+            const finishedCount = networkManager.roomPlayers.filter(p => p.finished).length;
+            finalRank = finishedCount + 1;
+        }
+
+        const podiumData = networkManager.roomPodium.length > 0
+            ? networkManager.roomPodium
+            : undefined;
+
         this.scene.stop('HudScene');
         this.cameras.main.fadeOut(250, 241, 245, 249);
         this.time.delayedCall(250, () => {
@@ -509,7 +535,9 @@ export class MainScene extends Scene {
                 kwh: this.cleanKwh,
                 distance: this.targetDistance,
                 multiplayer: this.isMultiplayer,
-                rank: networkManager.isMultiplayerActive() ? 1 : undefined
+                rank: finalRank || 1,
+                totalPlayers: networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 1,
+                podium: podiumData
             });
         });
     }

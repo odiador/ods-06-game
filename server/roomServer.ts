@@ -36,12 +36,42 @@ export interface Room {
     createdAt: number;
 }
 
-const PLAYER_COLORS = [
-    0x0284C7, // Cyan / Sky Blue (Player 1)
-    0xF59E0B, // Amber / Gold (Player 2)
-    0x10B981, // Emerald Green (Player 3)
-    0xEC4899, // Pink / Magenta (Player 4)
+export const MAX_PLAYERS_PER_ROOM = 50;
+
+const BASE_PALETTE = [
+    0x0284C7, // Cyan / Sky Blue
+    0xF59E0B, // Amber / Gold
+    0x10B981, // Emerald Green
+    0xEC4899, // Pink / Magenta
+    0x8B5CF6, // Purple
+    0x06B6D4, // Turquoise
+    0xEF4444, // Red
+    0x84CC16, // Lime
+    0xF97316, // Orange
+    0x6366F1, // Indigo
+    0x14B8A6, // Teal
+    0xE11D48, // Rose
 ];
+
+export function getPlayerColor(index: number): number {
+    if (index < BASE_PALETTE.length) return BASE_PALETTE[index];
+    const hue = (index * 137.5) % 360;
+    // HSV to RGB (s=0.85, v=0.95)
+    const c = 0.95 * 0.85;
+    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const m = 0.95 - c;
+    let r = 0, g = 0, b = 0;
+    if (hue < 60) { r = c; g = x; b = 0; }
+    else if (hue < 120) { r = x; g = c; b = 0; }
+    else if (hue < 180) { r = 0; g = c; b = x; }
+    else if (hue < 240) { r = 0; g = x; b = c; }
+    else if (hue < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    const red = Math.round((r + m) * 255);
+    const green = Math.round((g + m) * 255);
+    const blue = Math.round((b + m) * 255);
+    return (red << 16) | (green << 8) | blue;
+}
 
 export class RoomManager {
     private rooms: Map<string, Room> = new Map();
@@ -106,8 +136,16 @@ export class RoomManager {
                 const playerId = Math.random().toString(36).substring(2, 9);
 
                 const room = this.getOrCreateRoom(roomCode);
+                if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
+                    this.sendTo(ws, {
+                        type: 'ROOM_ERROR',
+                        message: 'SALA LLENA (MAX 50 PILOTOS)'
+                    });
+                    return;
+                }
+
                 const isHost = room.players.size === 0;
-                const colorIndex = room.players.size % PLAYER_COLORS.length;
+                const playerColor = getPlayerColor(room.players.size);
 
                 const player: Player = {
                     id: playerId,
@@ -115,7 +153,7 @@ export class RoomManager {
                     name: playerName,
                     roomCode,
                     isHost,
-                    color: PLAYER_COLORS[colorIndex],
+                    color: playerColor,
                     x: 240,
                     distance: 0,
                     speed: 45,
@@ -201,11 +239,23 @@ export class RoomManager {
                 const player = room.players.get(playerId);
                 if (!player || player.finished) return;
 
+                const alreadyFinished = Array.from(room.players.values()).filter(p => p.finished).length;
                 player.finished = true;
                 player.finishTimeMs = Number(msg.timeMs) || Date.now();
-                
-                const finishedCount = Array.from(room.players.values()).filter(p => p.finished).length;
-                player.rank = finishedCount;
+                player.rank = alreadyFinished + 1;
+
+                const finishedList = Array.from(room.players.values())
+                    .filter(p => p.finished)
+                    .sort((a, b) => a.rank - b.rank);
+
+                const podium = finishedList.slice(0, 3).map(p => ({
+                    rank: p.rank,
+                    playerId: p.id,
+                    name: p.name,
+                    finishTimeMs: p.finishTimeMs,
+                    timeSec: (p.finishTimeMs / 1000).toFixed(1),
+                    color: p.color
+                }));
 
                 this.broadcast(roomCode, {
                     type: 'PLAYER_FINISHED',
@@ -214,6 +264,8 @@ export class RoomManager {
                     rank: player.rank,
                     finishTimeMs: player.finishTimeMs,
                     kwh: msg.kwh || 0,
+                    podium,
+                    totalPlayers: room.players.size
                 });
                 break;
             }

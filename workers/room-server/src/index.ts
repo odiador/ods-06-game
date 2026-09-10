@@ -17,12 +17,41 @@ export interface PlayerData {
     rank: number;
 }
 
-const PLAYER_COLORS = [
-    0x0284C7, // Cyan / Sky Blue (Player 1)
-    0xF59E0B, // Amber / Gold (Player 2)
-    0x10B981, // Emerald Green (Player 3)
-    0xEC4899, // Pink / Magenta (Player 4)
+export const MAX_PLAYERS_PER_ROOM = 50;
+
+const BASE_PALETTE = [
+    0x0284C7, // Cyan / Sky Blue
+    0xF59E0B, // Amber / Gold
+    0x10B981, // Emerald Green
+    0xEC4899, // Pink / Magenta
+    0x8B5CF6, // Purple
+    0x06B6D4, // Turquoise
+    0xEF4444, // Red
+    0x84CC16, // Lime
+    0xF97316, // Orange
+    0x6366F1, // Indigo
+    0x14B8A6, // Teal
+    0xE11D48, // Rose
 ];
+
+export function getPlayerColor(index: number): number {
+    if (index < BASE_PALETTE.length) return BASE_PALETTE[index];
+    const hue = (index * 137.5) % 360;
+    const c = 0.95 * 0.85;
+    const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+    const m = 0.95 - c;
+    let r = 0, g = 0, b = 0;
+    if (hue < 60) { r = c; g = x; b = 0; }
+    else if (hue < 120) { r = x; g = c; b = 0; }
+    else if (hue < 180) { r = 0; g = c; b = x; }
+    else if (hue < 240) { r = 0; g = x; b = c; }
+    else if (hue < 300) { r = x; g = 0; b = c; }
+    else { r = c; g = 0; b = x; }
+    const red = Math.round((r + m) * 255);
+    const green = Math.round((g + m) * 255);
+    const blue = Math.round((b + m) * 255);
+    return (red << 16) | (green << 8) | blue;
+}
 
 export type RoomStatus = 'lobby' | 'countdown' | 'racing' | 'finished';
 
@@ -33,13 +62,23 @@ export type ClientMessage =
     | { type: 'FINISH_RACE'; roomCode?: string; playerId?: string; timeMs?: number; kwh?: number }
     | { type: 'LEAVE_ROOM' };
 
+export interface PodiumEntry {
+    rank: number;
+    playerId: string;
+    name: string;
+    finishTimeMs: number;
+    timeSec: string;
+    color: number;
+}
+
 export type ServerMessage =
     | { type: 'ROOM_JOINED'; playerId: string; roomCode: string; isHost: boolean; players: PlayerData[]; status: RoomStatus }
     | { type: 'ROOM_UPDATE'; roomCode?: string; players: PlayerData[]; status: RoomStatus; leftPlayerId?: string }
+    | { type: 'ROOM_ERROR'; message: string }
     | { type: 'RACE_COUNTDOWN'; countdownSeconds: number }
     | { type: 'RACE_STARTED' }
     | { type: 'PLAYERS_STATE'; players: PlayerData[] }
-    | { type: 'PLAYER_FINISHED'; playerId: string; name: string; rank: number; finishTimeMs: number; kwh: number };
+    | { type: 'PLAYER_FINISHED'; playerId: string; name: string; rank: number; finishTimeMs: number; kwh: number; podium?: PodiumEntry[]; totalPlayers?: number };
 
 export class RoomDurableObject extends DurableObject {
     private roomStatus: RoomStatus = 'lobby';
@@ -100,14 +139,22 @@ export class RoomDurableObject extends DurableObject {
                     const playerId = Math.random().toString(36).substring(2, 9);
 
                     const all = this.getAllPlayers();
+                    if (all.length >= MAX_PLAYERS_PER_ROOM) {
+                        ws.send(JSON.stringify({
+                            type: 'ROOM_ERROR',
+                            message: 'SALA LLENA (MAX 50 PILOTOS)'
+                        }));
+                        return;
+                    }
+
                     const isHost = all.length === 0;
-                    const colorIndex = all.length % PLAYER_COLORS.length;
+                    const playerColor = getPlayerColor(all.length);
 
                     const player: PlayerData = {
                         id: playerId,
                         name: playerName,
                         isHost,
-                        color: PLAYER_COLORS[colorIndex],
+                        color: playerColor,
                         x: 240,
                         distance: 0,
                         speed: 45,
@@ -178,13 +225,27 @@ export class RoomDurableObject extends DurableObject {
                 case 'FINISH_RACE': {
                     if (!currentData || currentData.finished) return;
 
+                    const allBefore = this.getAllPlayers();
+                    const alreadyFinished = allBefore.filter(p => p.finished).length;
+
                     currentData.finished = true;
                     currentData.finishTimeMs = Number(msg.timeMs) || Date.now();
-
-                    const all = this.getAllPlayers();
-                    const finishedCount = all.filter(p => p.finished).length;
-                    currentData.rank = finishedCount;
+                    currentData.rank = alreadyFinished + 1;
                     ws.serializeAttachment(currentData);
+
+                    const allAfter = this.getAllPlayers();
+                    const finishedList = allAfter
+                        .filter(p => p.finished)
+                        .sort((a, b) => a.rank - b.rank);
+
+                    const podium = finishedList.slice(0, 3).map(p => ({
+                        rank: p.rank,
+                        playerId: p.id,
+                        name: p.name,
+                        finishTimeMs: p.finishTimeMs,
+                        timeSec: (p.finishTimeMs / 1000).toFixed(1),
+                        color: p.color
+                    }));
 
                     this.broadcast({
                         type: 'PLAYER_FINISHED',
@@ -193,6 +254,8 @@ export class RoomDurableObject extends DurableObject {
                         rank: currentData.rank,
                         finishTimeMs: currentData.finishTimeMs,
                         kwh: msg.kwh || 0,
+                        podium,
+                        totalPlayers: allAfter.length
                     });
                     break;
                 }

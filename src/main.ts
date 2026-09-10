@@ -52,7 +52,11 @@ function initGame(): void {
     (window as any).__phaserGame = game;
     (window as any).networkManager = networkManager;
 
-    // Game will automatically pause on blur / app switch (as requested)
+    // Disable Phaser auto-pause on window blur or Alt+Tab
+    game.events.off(Phaser.Core.Events.BLUR);
+    game.events.off(Phaser.Core.Events.FOCUS);
+    game.events.off(Phaser.Core.Events.HIDDEN);
+    game.events.off(Phaser.Core.Events.VISIBLE);
 
     // Prevent right-click context menu so right-click can be used seamlessly for controls
     window.addEventListener('contextmenu', (e) => {

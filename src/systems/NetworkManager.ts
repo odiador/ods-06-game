@@ -13,6 +13,15 @@ export interface RemotePlayerInfo {
     rank: number;
 }
 
+export interface PodiumEntry {
+    rank: number;
+    playerId: string;
+    name: string;
+    finishTimeMs: number;
+    timeSec: string;
+    color?: number;
+}
+
 export class NetworkManager {
     private static instance?: NetworkManager;
 
@@ -23,6 +32,9 @@ export class NetworkManager {
     public isHost: boolean = false;
     public isInRoom: boolean = false;
     public roomPlayers: RemotePlayerInfo[] = [];
+    public roomPodium: PodiumEntry[] = [];
+    public myFinishRank: number = 0;
+    public totalPlayersInRoom: number = 1;
 
     private sendThrottleTimer: number = 0;
 
@@ -131,6 +143,8 @@ export class NetworkManager {
                 break;
 
             case 'RACE_STARTED':
+                this.roomPodium = [];
+                this.myFinishRank = 0;
                 EventBus.emit(GameEvents.RACE_STARTED, data);
                 break;
 
@@ -140,6 +154,15 @@ export class NetworkManager {
                 break;
 
             case 'PLAYER_FINISHED':
+                if (data.playerId === this.playerId) {
+                    this.myFinishRank = data.rank;
+                }
+                if (data.podium && Array.isArray(data.podium)) {
+                    this.roomPodium = data.podium;
+                }
+                if (data.totalPlayers) {
+                    this.totalPlayersInRoom = data.totalPlayers;
+                }
                 EventBus.emit(GameEvents.PLAYER_FINISHED, data);
                 break;
         }
@@ -176,7 +199,7 @@ export class NetworkManager {
         if (!this.isMultiplayerActive() || !this.roomCode || !this.playerId) return;
 
         const now = Date.now();
-        if (now - this.sendThrottleTimer < 40) return; // ~25 updates/sec
+        if (now - this.sendThrottleTimer < 100) return; // 10 Hz (10 updates/sec - optimized for 50 players)
         this.sendThrottleTimer = now;
 
         this.send({

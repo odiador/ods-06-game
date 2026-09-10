@@ -87,4 +87,39 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
         await context1.close();
         await context2.close();
     });
+
+    test('renders 1st-to-3rd podium on WinScene for multiplayer finish', async ({ page }) => {
+        await page.setViewportSize({ width: 480, height: 960 });
+        await page.goto('/');
+        await page.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        await page.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            if (game) {
+                game.scene.start('WinScene', {
+                    mode: 'race',
+                    time: '38.4',
+                    kwh: 210,
+                    distance: 2030,
+                    multiplayer: true,
+                    rank: 1,
+                    totalPlayers: 50,
+                    podium: [
+                        { rank: 1, name: 'ALFA', timeSec: '38.4' },
+                        { rank: 2, name: 'BETA', timeSec: '40.2' },
+                        { rank: 3, name: 'GAMMA', timeSec: '42.7' }
+                    ]
+                });
+            }
+        });
+
+        await page.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game && game.scene && game.scene.isActive('WinScene');
+        });
+        await page.waitForTimeout(1000);
+
+        await page.screenshot({ path: 'screenshots/e2e-multiplayer-podium.png' });
+    });
 });
