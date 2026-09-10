@@ -18,6 +18,10 @@ const config: Types.Core.GameConfig = {
     roundPixels: true,
     antialias: false,
     antialiasGL: false,
+    fps: {
+        target: 60,
+        forceSetTimeOut: true
+    },
     render: {
         pixelArt: true,
         antialias: false,

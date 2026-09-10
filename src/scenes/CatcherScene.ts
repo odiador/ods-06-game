@@ -14,6 +14,7 @@ export class CatcherScene extends Scene {
     private cursors!: Types.Input.Keyboard.CursorKeys;
     private keyA?: Phaser.Input.Keyboard.Key;
     private keyD?: Phaser.Input.Keyboard.Key;
+    private touchSteer: number = 0;
 
     private cleanGroup!: Phaser.Physics.Arcade.Group;
     private hazardGroup!: Phaser.Physics.Arcade.Group;
@@ -106,12 +107,28 @@ export class CatcherScene extends Scene {
             paused: this.showGuide
         });
 
-        // ── 5. Controls Input ──
+        // ── 5. Controls Input (Keyboard + Direct Touch/Click) ──
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
             this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
         }
+
+        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            if (!this.isGameActive) return;
+            const { width } = this.scale;
+            this.touchSteer = pointer.x < width / 2 ? -1 : 1;
+        });
+
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+            if (!this.isGameActive || !pointer.isDown) return;
+            const { width } = this.scale;
+            this.touchSteer = pointer.x < width / 2 ? -1 : 1;
+        });
+
+        this.input.on('pointerup', () => {
+            this.touchSteer = 0;
+        });
 
         // ── 6. HUD Dashboard (Set to Depth 100 so items fall behind it) ──
         this.createHud(width);
@@ -444,8 +461,12 @@ export class CatcherScene extends Scene {
         });
 
         // Movement Controls
-        const left = (this.cursors && this.cursors.left.isDown) || (this.keyA && this.keyA.isDown) || (touch && touch.left);
-        const right = (this.cursors && this.cursors.right.isDown) || (this.keyD && this.keyD.isDown) || (touch && touch.right);
+        const activePtr = this.input.activePointer;
+        const ptrLeft = (activePtr && activePtr.isDown) && activePtr.x < width / 2;
+        const ptrRight = (activePtr && activePtr.isDown) && activePtr.x >= width / 2;
+
+        const left = (this.cursors && this.cursors.left.isDown) || (this.keyA && this.keyA.isDown) || (this.touchSteer < 0) || ptrLeft || (touch && touch.left);
+        const right = (this.cursors && this.cursors.right.isDown) || (this.keyD && this.keyD.isDown) || (this.touchSteer > 0) || ptrRight || (touch && touch.right);
 
         const moveSpeed = 380;
         if (left && this.player.x > 32) {

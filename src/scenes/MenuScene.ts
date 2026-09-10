@@ -603,7 +603,7 @@ export class MenuScene extends Scene {
         playersBoxGfx.strokeRect(cardX + 16, playersBoxY, cardW - 32, 130);
         lobbyContainer.add(playersBoxGfx);
 
-        const playersHeader = this.add.text(cardX + 28, playersBoxY + 12, `JUGADORES CONECTADOS (${networkManager.roomPlayers.length}/4)`, {
+        const playersHeader = this.add.text(cardX + 28, playersBoxY + 12, `JUGADORES CONECTADOS (${networkManager.roomPlayers.length}/50)`, {
             fontSize: '11px',
             fontFamily: "'Outfit', sans-serif",
             fontStyle: 'bold',
@@ -611,8 +611,9 @@ export class MenuScene extends Scene {
         });
         lobbyContainer.add(playersHeader);
 
-        // List players
-        networkManager.roomPlayers.forEach((p, idx) => {
+        // List up to 4 players, then show count for remaining to avoid box overflow
+        const visiblePlayers = networkManager.roomPlayers.slice(0, 4);
+        visiblePlayers.forEach((p, idx) => {
             const py = playersBoxY + 36 + idx * 22;
             const isLocal = p.id === networkManager.playerId;
             const roleTag = p.isHost ? '(ANFITRIÓN)' : '(LISTO)';
@@ -625,6 +626,17 @@ export class MenuScene extends Scene {
             });
             lobbyContainer.add(pText);
         });
+
+        if (networkManager.roomPlayers.length > 4) {
+            const extraCount = networkManager.roomPlayers.length - 4;
+            const extraText = this.add.text(cardX + 32, playersBoxY + 36 + 4 * 22, `+ ${extraCount} piloto(s) más en la sala`, {
+                fontSize: '11px',
+                fontFamily: "'Outfit', sans-serif",
+                fontStyle: 'italic',
+                color: '#64748B'
+            });
+            lobbyContainer.add(extraText);
+        }
 
         // Instructions
         const roleMsg = networkManager.isHost

@@ -27,6 +27,7 @@ export class MainScene extends Scene {
     private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
     private keyA?: Phaser.Input.Keyboard.Key;
     private keyD?: Phaser.Input.Keyboard.Key;
+    private touchSteer: number = 0;
 
     // Single unified circuit configuration
     private currentCircuit: SingleCircuitConfig = MAIN_CIRCUIT;
@@ -143,12 +144,28 @@ export class MainScene extends Scene {
             this
         );
 
-        // ── 4. Input ──
+        // ── 4. Input (Keyboard + Direct Touch/Click) ──
         if (this.input.keyboard) {
             this.cursors = this.input.keyboard.createCursorKeys();
             this.keyA = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
             this.keyD = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
         }
+
+        this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+            if (!this.isRaceActive) return;
+            const { width } = this.scale;
+            this.touchSteer = pointer.x < width / 2 ? -1 : 1;
+        });
+
+        this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+            if (!this.isRaceActive || !pointer.isDown) return;
+            const { width } = this.scale;
+            this.touchSteer = pointer.x < width / 2 ? -1 : 1;
+        });
+
+        this.input.on('pointerup', () => {
+            this.touchSteer = 0;
+        });
 
         // ── 5. Spawner Timers ──
         this.time.addEvent({
@@ -235,9 +252,12 @@ export class MainScene extends Scene {
 
         // Player Controls
         const touch = (window as any).__touchControls;
+        const activePtr = this.input.activePointer;
+        const ptrSteer = (activePtr && activePtr.isDown) ? (activePtr.x < this.scale.width / 2 ? -1 : 1) : 0;
+
         let moveX = 0;
-        if (this.cursors?.left.isDown || this.keyA?.isDown || touch?.left) moveX = -1;
-        else if (this.cursors?.right.isDown || this.keyD?.isDown || touch?.right) moveX = 1;
+        if (this.cursors?.left.isDown || this.keyA?.isDown || this.touchSteer < 0 || ptrSteer < 0 || touch?.left) moveX = -1;
+        else if (this.cursors?.right.isDown || this.keyD?.isDown || this.touchSteer > 0 || ptrSteer > 0 || touch?.right) moveX = 1;
 
         if (moveX < 0) this.glider.steerLeft();
         else if (moveX > 0) this.glider.steerRight();
