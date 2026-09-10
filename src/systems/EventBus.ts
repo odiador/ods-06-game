@@ -20,5 +20,7 @@ export const GameEvents = {
     RACE_STARTED: 'race-started',
     PLAYERS_STATE: 'players-state',
     PLAYER_FINISHED: 'player-finished',
+    PLAYER_LEFT: 'player-left',
+    ROOM_ERROR: 'room-error',
     ROOM_LEFT: 'room-left'
 } as const;

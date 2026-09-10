@@ -140,6 +140,14 @@ export class RoomDurableObject extends DurableObject {
                     const playerId = Math.random().toString(36).substring(2, 9);
 
                     const all = this.getAllPlayers();
+                    if (this.roomStatus !== 'lobby') {
+                        ws.send(JSON.stringify({
+                            type: 'ROOM_ERROR',
+                            message: 'CARRERA EN CURSO (NO SE PUEDE UNIR)'
+                        }));
+                        return;
+                    }
+
                     if (all.length >= MAX_PLAYERS_PER_ROOM) {
                         ws.send(JSON.stringify({
                             type: 'ROOM_ERROR',
@@ -190,6 +198,14 @@ export class RoomDurableObject extends DurableObject {
                 }
 
                 case 'START_RACE': {
+                    if (currentData && !currentData.isHost) {
+                        ws.send(JSON.stringify({
+                            type: 'ROOM_ERROR',
+                            message: 'SOLO EL ANFITRION PUEDE CONTINUAR A LA SIGUIENTE RONDA'
+                        }));
+                        return;
+                    }
+
                     const round = Number(msg.round) || this.currentRound || 1;
                     this.currentRound = round;
                     this.roomStatus = 'countdown';
@@ -267,6 +283,14 @@ export class RoomDurableObject extends DurableObject {
                         color: p.color
                     }));
 
+                    const totalPlayers = allAfter.length;
+                    const cutoff = Math.max(1, Math.ceil(totalPlayers / 2));
+                    const firstHalfComplete = finishedList.length >= cutoff;
+
+                    if (firstHalfComplete && this.roomStatus === 'racing') {
+                        this.roomStatus = 'podium';
+                    }
+
                     this.broadcast({
                         type: 'PLAYER_FINISHED',
                         playerId: currentData.id,
@@ -275,7 +299,10 @@ export class RoomDurableObject extends DurableObject {
                         finishTimeMs: currentData.finishTimeMs,
                         kwh: msg.kwh || 0,
                         podium,
-                        totalPlayers: allAfter.length
+                        totalPlayers,
+                        cutoff,
+                        firstHalfComplete,
+                        finishedCount: finishedList.length
                     });
                     break;
                 }
@@ -290,6 +317,7 @@ export class RoomDurableObject extends DurableObject {
         ws.close(code, reason);
 
         const remaining = this.getAllPlayers();
+        let newHostId: string | undefined;
 
         // If host left, assign new host
         if (leavingPlayer?.isHost && remaining.length > 0) {
@@ -298,10 +326,20 @@ export class RoomDurableObject extends DurableObject {
                 const hostData = nextWs.deserializeAttachment() as PlayerData | null;
                 if (hostData) {
                     hostData.isHost = true;
+                    newHostId = hostData.id;
                     nextWs.serializeAttachment(hostData);
                 }
             }
         }
+
+        this.broadcast({
+            type: 'PLAYER_LEFT',
+            playerId: leavingPlayer?.id,
+            playerName: leavingPlayer?.name || 'Piloto',
+            players: this.getAllPlayers(),
+            newHostId,
+            status: this.roomStatus,
+        });
 
         this.broadcast({
             type: 'ROOM_UPDATE',

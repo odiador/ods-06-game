@@ -2,6 +2,7 @@ import { Scene } from 'phaser';
 import { GameModeId, ROTATING_LESSONS, TOURNAMENT_ROUNDS } from '../types/game';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
+import { networkManager } from '../systems/NetworkManager';
 
 export interface PodiumEntry {
     rank: number;
@@ -43,6 +44,7 @@ export class WinScene extends Scene {
     private subTitleText?: Phaser.GameObjects.Text;
     private posStatText?: Phaser.GameObjects.Text;
     private liveToast?: Phaser.GameObjects.Container;
+    private podiumTimer?: Phaser.Time.TimerEvent;
     private pedestalSlots: Array<{
         rank: number;
         gfx: Phaser.GameObjects.Graphics;
@@ -174,11 +176,19 @@ export class WinScene extends Scene {
             resolution: 3
         }).setOrigin(0.5);
 
-        // Multiplayer real-time finish listener
+        // Multiplayer real-time finish, race start & disconnect listeners
         if (this.isMultiplayer) {
             EventBus.on(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            EventBus.on(GameEvents.RACE_COUNTDOWN, this.handleMultiplayerRaceStart, this);
+            EventBus.on(GameEvents.PLAYER_LEFT, this.handlePeerLeft, this);
             this.events.once('shutdown', () => {
                 EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+                EventBus.off(GameEvents.RACE_COUNTDOWN, this.handleMultiplayerRaceStart, this);
+                EventBus.off(GameEvents.PLAYER_LEFT, this.handlePeerLeft, this);
+                if (this.podiumTimer) {
+                    this.podiumTimer.remove(false);
+                    this.podiumTimer = undefined;
+                }
             });
         }
 
@@ -198,60 +208,127 @@ export class WinScene extends Scene {
         const btnX = width / 2 - btnW / 2;
 
         const btnBg = this.add.graphics();
+        let currentBtnColor: 'green' | 'amber' | 'slate' | 'red' = 'green';
+
         const renderBtn = (hover: boolean): void => {
             btnBg.clear();
-            const fillC = this.isQualified && this.round < 4 ? (hover ? 0x22C55E : 0x16A34A) : (hover ? 0xFBBF24 : 0xF59E0B);
-            const edgeC = this.isQualified && this.round < 4 ? 0x15803D : 0xB45309;
+            let fillC = 0x16A34A;
+            let edgeC = 0x15803D;
+            if (currentBtnColor === 'slate') {
+                fillC = hover ? 0x475569 : 0x334155;
+                edgeC = 0x1E293B;
+            } else if (currentBtnColor === 'amber') {
+                fillC = hover ? 0xFBBF24 : 0xF59E0B;
+                edgeC = 0xB45309;
+            } else if (currentBtnColor === 'red') {
+                fillC = hover ? 0xEF4444 : 0xDC2626;
+                edgeC = 0x991B1B;
+            } else {
+                fillC = hover ? 0x22C55E : 0x16A34A;
+                edgeC = 0x15803D;
+            }
             btnBg.fillStyle(fillC, 1);
             btnBg.fillRect(btnX, btnY, btnW, btnH);
             btnBg.fillStyle(edgeC, 1);
             btnBg.fillRect(btnX, btnY + btnH - 3, btnW, 3);
         };
-        renderBtn(false);
 
-        let restartLabel = '';
-        if (this.round < 4 && this.isQualified) {
-            const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
-            restartLabel = `AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`;
-        } else if (this.round < 4) {
-            restartLabel = 'REINTENTAR TORNEO (R1)';
-        } else {
-            restartLabel = 'NUEVO TORNEO (DESDE R1)';
-        }
-
-        this.add.text(width / 2, btnY + btnH / 2 - 1, restartLabel, {
-            fontSize: '9px',
+        const btnText = this.add.text(width / 2, btnY + btnH / 2 - 1, '', {
+            fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: this.isQualified && this.round < 4 ? '#FFFFFF' : '#0F172A'
+            color: '#FFFFFF',
+            align: 'center'
         }).setOrigin(0.5);
 
         const hitZone = this.add.zone(width / 2, btnY + btnH / 2, btnW, btnH)
-            .setOrigin(0.5)
-            .setInteractive({ useHandCursor: true });
+            .setOrigin(0.5);
 
-        const triggerRestart = (): void => {
-            hitZone.disableInteractive();
-            this.cameras.main.fadeOut(180, 241, 245, 249);
-            this.time.delayedCall(180, () => {
-                if (this.round < 4 && this.isQualified) {
-                    this.scene.start('MainScene', {
-                        round: this.round + 1,
-                        multiplayer: this.isMultiplayer,
-                        skipGuide: true
-                    });
+        if (this.isMultiplayer) {
+            if (this.round < 4) {
+                if (!this.isQualified) {
+                    currentBtnColor = 'red';
+                    renderBtn(false);
+                    btnText.setText('ELIMINADO (TOP 50% LLENO)');
+                } else if (!networkManager.isHost) {
+                    currentBtnColor = 'slate';
+                    renderBtn(false);
+                    btnText.setText('ESPERANDO AL ANFITRION...');
                 } else {
+                    // Host: 3-second viewing delay for podium before allowing continuation
+                    let cooldown = 3;
+                    currentBtnColor = 'amber';
+                    renderBtn(false);
+                    btnText.setText(`MOSTRANDO PODIO (${cooldown}s)...`);
+
+                    this.podiumTimer = this.time.addEvent({
+                        delay: 1000,
+                        repeat: 2,
+                        callback: () => {
+                            cooldown--;
+                            if (cooldown > 0) {
+                                btnText.setText(`MOSTRANDO PODIO (${cooldown}s)...`);
+                            } else {
+                                currentBtnColor = 'green';
+                                renderBtn(false);
+                                btnText.setText(`AVANZAR A RONDA ${this.round + 1} (HOST)`);
+                                hitZone.setInteractive({ useHandCursor: true });
+                            }
+                        }
+                    });
+
+                    hitZone.on('pointerdown', () => {
+                        hitZone.disableInteractive();
+                        btnText.setText('INICIANDO RONDA...');
+                        networkManager.startRace(this.round + 1);
+                    });
+                    hitZone.on('pointerover', () => renderBtn(true));
+                    hitZone.on('pointerout', () => renderBtn(false));
+                }
+            } else {
+                // Round 4 (Grand Final) in Multiplayer
+                if (networkManager.isHost) {
+                    currentBtnColor = 'amber';
+                    renderBtn(false);
+                    btnText.setText('NUEVO TORNEO (HOST)');
+                    hitZone.setInteractive({ useHandCursor: true });
+                    hitZone.on('pointerdown', () => {
+                        hitZone.disableInteractive();
+                        networkManager.startRace(1);
+                    });
+                    hitZone.on('pointerover', () => renderBtn(true));
+                    hitZone.on('pointerout', () => renderBtn(false));
+                } else {
+                    currentBtnColor = 'slate';
+                    renderBtn(false);
+                    btnText.setText('FIN DEL TORNEO 2030');
+                }
+            }
+        } else {
+            // Solo Mode
+            currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
+            renderBtn(false);
+            if (this.round < 4 && this.isQualified) {
+                const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
+                btnText.setText(`AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`);
+            } else if (this.round < 4) {
+                btnText.setText('REINTENTAR TORNEO (R1)');
+            } else {
+                btnText.setText('NUEVO TORNEO (DESDE R1)');
+            }
+            hitZone.setInteractive({ useHandCursor: true });
+            hitZone.on('pointerover', () => renderBtn(true));
+            hitZone.on('pointerout', () => renderBtn(false));
+            hitZone.on('pointerdown', () => {
+                hitZone.disableInteractive();
+                this.cameras.main.fadeOut(180, 241, 245, 249);
+                this.time.delayedCall(180, () => {
                     this.scene.start('MainScene', {
-                        round: 1,
-                        multiplayer: this.isMultiplayer,
+                        round: this.round < 4 && this.isQualified ? this.round + 1 : 1,
                         skipGuide: true
                     });
-                }
+                });
             });
-        };
-
-        hitZone.on('pointerover', () => renderBtn(true));
-        hitZone.on('pointerout', () => renderBtn(false));
-        hitZone.on('pointerdown', triggerRestart);
+        }
 
         // ── 8. Secondary Action: MENU PRINCIPAL ──
         const menuBtnY = 756;
@@ -280,6 +357,9 @@ export class WinScene extends Scene {
 
         const triggerMenu = (): void => {
             menuHitZone.disableInteractive();
+            if (this.isMultiplayer) {
+                networkManager.leaveRoom();
+            }
             this.cameras.main.fadeOut(180, 241, 245, 249);
             this.time.delayedCall(180, () => {
                 this.scene.start('MenuScene');
@@ -292,8 +372,16 @@ export class WinScene extends Scene {
 
         // Keyboard triggers
         if (this.input.keyboard) {
-            this.input.keyboard.once('keydown-SPACE', triggerRestart);
-            this.input.keyboard.once('keydown-ENTER', triggerRestart);
+            this.input.keyboard.once('keydown-SPACE', () => {
+                if (hitZone.input && hitZone.input.enabled) {
+                    hitZone.emit('pointerdown');
+                }
+            });
+            this.input.keyboard.once('keydown-ENTER', () => {
+                if (hitZone.input && hitZone.input.enabled) {
+                    hitZone.emit('pointerdown');
+                }
+            });
             this.input.keyboard.once('keydown-ESC', triggerMenu);
         }
 
@@ -796,12 +884,12 @@ export class WinScene extends Scene {
         bg.strokeRoundedRect(-toastW / 2, -toastH / 2, toastW, toastH, 6);
         toast.add(bg);
 
-        const rankTag = rank === 1 ? '1° ORO' : rank === 2 ? '2° PLATA' : rank === 3 ? '3° BRONCE' : `${rank}° LUGAR`;
-        const msg = `[ ${rankTag} ] ${name.slice(0, 8)} CRUZO META (${timeSec}s)`;
+        const rankTag = timeSec === 'DESCONECTADO' ? 'DESCONECTADO' : (rank === 1 ? '1° ORO' : rank === 2 ? '2° PLATA' : rank === 3 ? '3° BRONCE' : `${rank}° LUGAR`);
+        const msg = timeSec === 'DESCONECTADO' ? `[ DESCONECTADO ] ${name.slice(0, 8)} SALIO DE LA SALA` : `[ ${rankTag} ] ${name.slice(0, 8)} CRUZO META (${timeSec}s)`;
         const text = this.add.text(0, 0, msg, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: '#38BDF8',
+            color: timeSec === 'DESCONECTADO' ? '#EF4444' : '#38BDF8',
             resolution: 3
         }).setOrigin(0.5);
         toast.add(text);
@@ -833,4 +921,27 @@ export class WinScene extends Scene {
             }
         });
     }
+
+    private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number }): void => {
+        this.cameras.main.fadeOut(180, 241, 245, 249);
+        this.time.delayedCall(180, () => {
+            this.scene.start('MainScene', {
+                round: data?.round || this.round + 1,
+                multiplayer: true,
+                skipGuide: true,
+                countdownSeconds: data?.countdownSeconds || 3,
+                roomCode: networkManager.roomCode
+            });
+        });
+    };
+
+    private handlePeerLeft = (data: { playerId: string; playerName?: string; players?: any[] }): void => {
+        this.showLiveArrivalToast(data.playerName || 'PILOTO', 0, 'DESCONECTADO');
+        if (data.players) {
+            this.totalPlayers = data.players.length;
+            if (this.posStatText) {
+                this.posStatText.setText(`${this.rank}° DE ${this.totalPlayers}`);
+            }
+        }
+    };
 }

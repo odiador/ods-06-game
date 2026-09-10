@@ -256,6 +256,7 @@ export class MainScene extends Scene {
 
             EventBus.on(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
             EventBus.on(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            EventBus.on(GameEvents.PLAYER_LEFT, this.handlePlayerLeft, this);
             EventBus.on(GameEvents.RACE_STARTED, this.handleServerRaceStarted, this);
 
             // Populate starting grid with existing room players immediately
@@ -283,6 +284,7 @@ export class MainScene extends Scene {
             }
             EventBus.off(GameEvents.PLAYERS_STATE, this.handleRemotePlayersState, this);
             EventBus.off(GameEvents.PLAYER_FINISHED, this.handlePeerFinished, this);
+            EventBus.off(GameEvents.PLAYER_LEFT, this.handlePlayerLeft, this);
             EventBus.off(GameEvents.RACE_STARTED, this.handleServerRaceStarted, this);
             if (this.countdownTimer) {
                 this.countdownTimer.remove(false);
@@ -684,6 +686,17 @@ export class MainScene extends Scene {
 
     private handlePeerFinished(data: { name: string; rank: number }): void {
         this.showPopup(this.scale.width / 2, 200, `¡${data.name} CRUZO EN ${data.rank}°!`, '#F59E0B');
+    }
+
+    private handlePlayerLeft(data: { playerId: string; playerName?: string }): void {
+        const remote = this.remoteGliders.get(data.playerId);
+        if (remote) {
+            remote.container.destroy();
+            this.remoteGliders.delete(data.playerId);
+        }
+        this.latestRemotePlayers.delete(data.playerId);
+        this.updateLeaderboardUI();
+        this.showPopup(this.scale.width / 2, 220, `¡${data.playerName || 'PILOTO'} SE DESCONECTO!`, '#EF4444');
     }
 
     private updateTrackObjects(scrollSpeed: number): void {

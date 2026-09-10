@@ -24,6 +24,7 @@ export class MenuScene extends Scene {
     private multiplayerModal?: Phaser.GameObjects.Container;
     private currentRoomKey: string = 'ODS7';
     private currentPilotName: string = 'Piloto';
+    private roomErrorMessage?: string;
 
     constructor() {
         super('MenuScene');
@@ -488,6 +489,17 @@ export class MenuScene extends Scene {
 
         // Action Buttons: ENTRAR A LA SALA & CANCELAR
         const actionY = cardY + 300;
+
+        if (this.roomErrorMessage) {
+            const errText = this.add.text(width / 2, actionY - 16, `⚠ ${this.roomErrorMessage}`, {
+                fontSize: '8px',
+                fontFamily: "'Press Start 2P', monospace",
+                color: '#EF4444',
+                align: 'center'
+            }).setOrigin(0.5);
+            formContainer.add(errText);
+        }
+
         const enterBtn = this.add.graphics();
         enterBtn.fillStyle(0x0F172A, 1);
         enterBtn.fillRect(width / 2 - 130, actionY, 260, 42);
@@ -507,6 +519,7 @@ export class MenuScene extends Scene {
         const enterHit = this.add.zone(width / 2, actionY + 21, 260, 42).setOrigin(0.5).setInteractive({ useHandCursor: true });
         formContainer.add(enterHit);
         enterHit.on('pointerdown', async () => {
+            this.roomErrorMessage = undefined;
             enterText.setText('CONECTANDO...');
             const ok = await networkManager.joinRoom(this.currentRoomKey, this.currentPilotName);
             if (!ok) {
@@ -652,6 +665,7 @@ export class MenuScene extends Scene {
         this.removeMultiplayerListeners();
         EventBus.on(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
         EventBus.on(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
+        EventBus.on(GameEvents.ROOM_ERROR, this.handleRoomError, this);
         EventBus.on(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
         EventBus.on(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
 
@@ -663,11 +677,21 @@ export class MenuScene extends Scene {
     private removeMultiplayerListeners(): void {
         EventBus.off(GameEvents.ROOM_JOINED, this.handleRoomJoined, this);
         EventBus.off(GameEvents.ROOM_UPDATED, this.handleRoomUpdated, this);
+        EventBus.off(GameEvents.ROOM_ERROR, this.handleRoomError, this);
         EventBus.off(GameEvents.RACE_COUNTDOWN, this.handleRaceCountdown, this);
         EventBus.off(GameEvents.RACE_STARTED, this.handleRaceStarted, this);
     }
 
+    private handleRoomError = (msg: string): void => {
+        this.roomErrorMessage = msg;
+        if (this.multiplayerModal) {
+            this.multiplayerModal.removeAll(true);
+            this.openMultiplayerModal();
+        }
+    };
+
     private handleRoomJoined = (): void => {
+        this.roomErrorMessage = undefined;
         if (this.multiplayerModal) {
             this.multiplayerModal.removeAll(true);
             this.openMultiplayerModal();

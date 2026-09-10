@@ -122,4 +122,94 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
 
         await page.screenshot({ path: 'screenshots/e2e-multiplayer-podium.png' });
     });
+
+    test('disconnects player on page refresh and removes them from rivals on track', async ({ browser }) => {
+        const roomCode = 'ODS8';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+
+        await p1.goto(`/?room=${roomCode}&name=P1`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(1000);
+
+        await p2.goto(`/?room=${roomCode}&name=P2`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(1000);
+
+        // P1 starts race
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 12000 });
+
+        await p2.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 12000 });
+
+        await p1.waitForTimeout(1500);
+
+        // P2 refreshes / disconnects
+        await p2.close();
+        await ctx2.close();
+
+        // P1 should now have 0 remote gliders for P2
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            return main && main.remoteGliders && main.remoteGliders.size === 0;
+        }, { timeout: 8000 });
+
+        const finalRivalsOnP1 = await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            return main?.remoteGliders?.size || 0;
+        });
+        expect(finalRivalsOnP1).toBe(0);
+
+        await ctx1.close();
+    });
+
+    test('rejects new players when race is already in progress', async ({ browser }) => {
+        const roomCode = 'ODS9';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctxLate = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const pLate = await ctxLate.newPage();
+
+        await p1.goto(`/?room=${roomCode}&name=HOST`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(1000);
+
+        // Host starts race
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 12000 });
+
+        // Late player tries to join room while racing
+        await pLate.goto(`/?room=${roomCode}&name=LATE`);
+        await pLate.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await pLate.waitForTimeout(1500);
+
+        const errorShown = await pLate.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const menu = game?.scene?.getScene('MenuScene') as any;
+            return menu && typeof menu.roomErrorMessage === 'string';
+        });
+        expect(errorShown).toBe(true);
+
+        await ctx1.close();
+        await ctxLate.close();
+    });
 });

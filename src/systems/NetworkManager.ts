@@ -165,6 +165,18 @@ export class NetworkManager {
                 }
                 EventBus.emit(GameEvents.PLAYER_FINISHED, data);
                 break;
+
+            case 'PLAYER_LEFT':
+                this.roomPlayers = data.players || [];
+                if (data.newHostId === this.playerId) {
+                    this.isHost = true;
+                }
+                EventBus.emit(GameEvents.PLAYER_LEFT, data);
+                break;
+
+            case 'ROOM_ERROR':
+                EventBus.emit(GameEvents.ROOM_ERROR, data.message || 'Error en la sala');
+                break;
         }
     }
 
@@ -192,6 +204,7 @@ export class NetworkManager {
         this.send({
             type: 'START_RACE',
             roomCode: this.roomCode,
+            playerId: this.playerId,
             round,
         });
     }

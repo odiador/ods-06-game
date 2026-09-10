@@ -137,6 +137,14 @@ export class RoomManager {
                 const playerId = Math.random().toString(36).substring(2, 9);
 
                 const room = this.getOrCreateRoom(roomCode);
+                if (room.status !== 'lobby') {
+                    this.sendTo(ws, {
+                        type: 'ROOM_ERROR',
+                        message: 'CARRERA EN CURSO (NO SE PUEDE UNIR)'
+                    });
+                    return;
+                }
+
                 if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
                     this.sendTo(ws, {
                         type: 'ROOM_ERROR',
@@ -192,17 +200,27 @@ export class RoomManager {
                 const room = this.rooms.get(roomCode);
                 if (!room) return;
 
+                const playerId = String(msg.playerId || '');
+                const player = playerId ? room.players.get(playerId) : undefined;
+                if (player && !player.isHost) {
+                    this.sendTo(ws, {
+                        type: 'ROOM_ERROR',
+                        message: 'SOLO EL ANFITRION PUEDE CONTINUAR A LA SIGUIENTE RONDA'
+                    });
+                    return;
+                }
+
                 const round = Number(msg.round) || room.currentRound || 1;
                 room.currentRound = round;
                 room.status = 'countdown';
 
                 // Reset player race stats for the round
-                for (const player of room.players.values()) {
-                    player.finished = false;
-                    player.finishTimeMs = 0;
-                    player.distance = 0;
-                    player.speed = 45;
-                    player.rank = 0;
+                for (const p of room.players.values()) {
+                    p.finished = false;
+                    p.finishTimeMs = 0;
+                    p.distance = 0;
+                    p.speed = 45;
+                    p.rank = 0;
                 }
 
                 this.broadcast(roomCode, {
@@ -272,6 +290,14 @@ export class RoomManager {
                     color: p.color
                 }));
 
+                const totalPlayers = room.players.size;
+                const cutoff = Math.max(1, Math.ceil(totalPlayers / 2));
+                const firstHalfComplete = finishedList.length >= cutoff;
+
+                if (firstHalfComplete && room.status === 'racing') {
+                    room.status = 'podium';
+                }
+
                 this.broadcast(roomCode, {
                     type: 'PLAYER_FINISHED',
                     playerId,
@@ -280,7 +306,10 @@ export class RoomManager {
                     finishTimeMs: player.finishTimeMs,
                     kwh: msg.kwh || 0,
                     podium,
-                    totalPlayers: room.players.size
+                    totalPlayers,
+                    cutoff,
+                    firstHalfComplete,
+                    finishedCount: finishedList.length
                 });
                 break;
             }
@@ -300,17 +329,31 @@ export class RoomManager {
         }
 
         // If host left, appoint new host
+        let newHostId: string | undefined;
         if (player?.isHost) {
             const nextPlayer = room.players.values().next().value;
             if (nextPlayer) {
                 nextPlayer.isHost = true;
+                newHostId = nextPlayer.id;
             }
         }
+
+        const publicPlayers = this.getPublicPlayers(room);
+
+        // Notify other clients that player left / disconnected
+        this.broadcast(roomCode, {
+            type: 'PLAYER_LEFT',
+            playerId,
+            playerName: player?.name || 'Piloto',
+            players: publicPlayers,
+            newHostId,
+            status: room.status,
+        });
 
         this.broadcast(roomCode, {
             type: 'ROOM_UPDATE',
             roomCode,
-            players: this.getPublicPlayers(room),
+            players: publicPlayers,
             status: room.status,
             leftPlayerId: playerId,
         });
