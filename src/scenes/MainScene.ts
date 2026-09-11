@@ -616,6 +616,10 @@ export class MainScene extends Scene {
         if (typeof document === 'undefined') return;
         if (document.hidden) {
             this.lastHiddenTime = performance.now();
+            // Drop speed to penalty crawl immediately so hidden tabs cannot exploit invulnerability
+            if (this.glider) {
+                this.glider.speed = 20;
+            }
             this.startBackgroundSimulation();
         } else {
             this.stopBackgroundSimulation();
@@ -671,9 +675,14 @@ export class MainScene extends Scene {
 
         if (deltaSec <= 0 || deltaSec > 2) return;
 
-        const currentSpeed = this.glider ? this.glider.speed : 45;
-        const meters = (currentSpeed / 3.6) * deltaSec * 1.8;
-        this.distanceTraveled += meters;
+        // Inactivity penalty speed (20 km/h) prevents tab-switch invulnerability exploit
+        const penaltySpeed = 20;
+        if (this.glider) {
+            this.glider.speed = penaltySpeed;
+        }
+        const meters = (penaltySpeed / 3.6) * deltaSec * 1.8;
+        // Background simulation cannot cross the finish line (capped at targetDistance - 10)
+        this.distanceTraveled = Math.min(this.targetDistance - 10, this.distanceTraveled + meters);
 
         const curDist = Math.min(this.targetDistance, Math.round(this.distanceTraveled));
         const progressPct = (curDist / this.targetDistance) * 100;
@@ -683,16 +692,11 @@ export class MainScene extends Scene {
             progress: progressPct,
             distance: curDist
         });
-        EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeed));
+        EventBus.emit(GameEvents.SPEED_UPDATED, penaltySpeed);
 
         if (this.isMultiplayer) {
-            networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+            networkManager.sendPlayerUpdate(this.glider ? this.glider.x : 240, this.distanceTraveled, penaltySpeed);
             this.updateLeaderboardUI();
-        }
-
-        if (this.distanceTraveled >= this.targetDistance) {
-            this.stopBackgroundSimulation();
-            this.finishRace();
         }
     }
 
@@ -704,9 +708,14 @@ export class MainScene extends Scene {
         this.lastHiddenTime = now;
 
         if (deltaSec > 0.05 && deltaSec < 120) {
-            const currentSpeed = this.glider ? this.glider.speed : 45;
-            const meters = (currentSpeed / 3.6) * deltaSec * 1.8;
-            this.distanceTraveled += meters;
+            // Inactivity penalty speed (20 km/h) applies to offline catch-up
+            const penaltySpeed = 20;
+            if (this.glider) {
+                this.glider.speed = penaltySpeed;
+            }
+            const meters = (penaltySpeed / 3.6) * deltaSec * 1.8;
+            // Never finish from background catch-up
+            this.distanceTraveled = Math.min(this.targetDistance - 10, this.distanceTraveled + meters);
 
             const curDist = Math.min(this.targetDistance, Math.round(this.distanceTraveled));
             const progressPct = (curDist / this.targetDistance) * 100;
@@ -716,15 +725,11 @@ export class MainScene extends Scene {
                 progress: progressPct,
                 distance: curDist
             });
-            EventBus.emit(GameEvents.SPEED_UPDATED, Math.round(currentSpeed));
+            EventBus.emit(GameEvents.SPEED_UPDATED, penaltySpeed);
 
             if (this.isMultiplayer) {
-                networkManager.sendPlayerUpdate(this.glider.x, this.distanceTraveled, currentSpeed);
+                networkManager.sendPlayerUpdate(this.glider ? this.glider.x : 240, this.distanceTraveled, penaltySpeed);
                 this.updateLeaderboardUI();
-            }
-
-            if (this.distanceTraveled >= this.targetDistance) {
-                this.finishRace();
             }
         }
     }

@@ -519,4 +519,44 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
         await ctx2.close();
         await ctx3.close();
     });
+
+    test('penalizes background tab switching by reducing speed to 20 km/h and blocking background finish', async ({ page }) => {
+        await page.goto('/?room=ODS_TAB&name=TABBER');
+        await page.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await page.waitForTimeout(1000);
+
+        await page.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await page.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 });
+        await page.waitForTimeout(4000); // race becomes active after 3.5s countdown
+
+        // Simulate tab switch (document.hidden = true)
+        await page.evaluate(() => {
+            Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+
+        // Verify speed was reduced to penalty crawl (20 km/h)
+        const speedHidden = await page.evaluate(() => {
+            const main = (window as any).__phaserGame?.scene?.getScene('MainScene') as any;
+            return main?.glider?.speed;
+        });
+        expect(Math.round(speedHidden)).toBe(20);
+
+        // Advance distance near meta while hidden
+        await page.evaluate(() => {
+            const main = (window as any).__phaserGame?.scene?.getScene('MainScene') as any;
+            main.distanceTraveled = main.targetDistance + 500;
+            main.simulateBackgroundTick();
+        });
+
+        // Verify distance was capped at targetDistance - 10 and cannot finish in background
+        const hasFinishedHidden = await page.evaluate(() => {
+            const main = (window as any).__phaserGame?.scene?.getScene('MainScene') as any;
+            return main?.hasFinished;
+        });
+        expect(hasFinishedHidden).toBe(false);
+    });
 });
