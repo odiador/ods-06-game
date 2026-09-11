@@ -1,5 +1,5 @@
 import { Scene } from 'phaser';
-import { GameModeId, ROTATING_LESSONS, TOURNAMENT_ROUNDS } from '../types/game';
+import { GameModeId, ROTATING_LESSONS, TOURNAMENT_ROUNDS, computeTournamentMaxRounds, computeQualificationCutoff } from '../types/game';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
 import { networkManager } from '../systems/NetworkManager';
@@ -16,6 +16,7 @@ export interface PodiumEntry {
 interface WinSceneData {
     mode?: GameModeId;
     round?: number;
+    maxRounds?: number;
     singleMapMode?: boolean;
     time: string;
     kwh: number;
@@ -29,6 +30,7 @@ interface WinSceneData {
 export class WinScene extends Scene {
     private singleMapMode: boolean = false;
     private round: number = 1;
+    private maxRounds: number = 4;
     private isQualified: boolean = false;
     private cutoffRank: number = 25;
     private finalTime: string = '0.0';
@@ -71,16 +73,17 @@ export class WinScene extends Scene {
         this.finalCo2 = Math.round(this.finalKwh * 0.45);
         this.isMultiplayer = data.multiplayer === true;
         this.totalPlayers = Math.max(1, data.totalPlayers || (this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6));
+        this.maxRounds = data.maxRounds || computeTournamentMaxRounds(this.totalPlayers, this.singleMapMode);
         this.rank = Math.max(1, Math.min(data.rank || 1, this.totalPlayers));
         this.podium = data.podium || [];
         this.currentLessonIdx = Phaser.Math.Between(0, ROTATING_LESSONS.length - 1);
 
-        if (this.round < 4) {
-            this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
-            this.isQualified = this.rank <= this.cutoffRank;
-        } else {
-            this.cutoffRank = 3;
+        if (this.round >= this.maxRounds) {
+            this.cutoffRank = Math.min(3, this.totalPlayers);
             this.isQualified = true;
+        } else {
+            this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
+            this.isQualified = this.rank <= this.cutoffRank;
         }
     }
 
@@ -112,7 +115,7 @@ export class WinScene extends Scene {
             bannerColor = '#0284C7';
             bannerBgColor = 0xE0F2FE;
             bannerBorderColor = 0x0284C7;
-        } else if (this.round < 4) {
+        } else if (this.round < this.maxRounds) {
             if (this.isQualified) {
                 bannerTitle = `¡CLASIFICASTE A RONDA ${this.round + 1}! (${this.rank}° DE ${this.totalPlayers})`;
                 bannerColor = '#15803D';
@@ -141,7 +144,7 @@ export class WinScene extends Scene {
                 bannerBgColor = 0xFFEDD5;
                 bannerBorderColor = 0xF97316;
             } else {
-                bannerTitle = `¡FINALISTA TOP 6 DE LA RED 2030!`;
+                bannerTitle = `¡FINALISTA DE LA SALA (${this.rank}° DE ${this.totalPlayers})!`;
                 bannerColor = '#0284C7';
                 bannerBgColor = 0xE0F2FE;
                 bannerBorderColor = 0x0284C7;
@@ -160,11 +163,11 @@ export class WinScene extends Scene {
         }).setOrigin(0.5);
 
         // ── 3. Animated Trophy / Vehicle Mascot ──
-        const nextRoundCfg = this.round < 4 ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
+        const nextRoundCfg = this.round < this.maxRounds ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
         const spriteKey = (this.isQualified && nextRoundCfg) ? nextRoundCfg.vehicleKey : currentRoundCfg.vehicleKey;
 
         const trophy = this.add.sprite(width / 2, 106, spriteKey).setScale(2.4);
-        if (this.round === 4 && this.rank === 1) {
+        if (this.round >= this.maxRounds && this.rank === 1) {
             trophy.setTint(0xF59E0B);
         }
         this.tweens.add({
@@ -178,11 +181,11 @@ export class WinScene extends Scene {
 
         const subTitle = this.singleMapMode
             ? `MODO ETAPA INDIVIDUAL · TIEMPO: ${this.finalTime}s`
-            : this.round < 4
+            : this.round < this.maxRounds
             ? (this.isQualified
                 ? `¡PREPARATE PARA ${nextRoundCfg?.name || 'LA SIGUIENTE RONDA'}!`
-                : `RONDA ${this.round}/4 · ${currentRoundCfg.name}`)
-            : `GRAN FINAL 2030 · ${currentRoundCfg.name}`;
+                : `RONDA ${this.round}/${this.maxRounds} · ${currentRoundCfg.name}`)
+            : (this.maxRounds === 1 ? `FINAL DIRECTA · ${currentRoundCfg.name}` : `GRAN FINAL 2030 · ${currentRoundCfg.name}`);
 
         this.subTitleText = this.add.text(width / 2, 138, subTitle, {
             fontSize: '9px',
@@ -264,7 +267,7 @@ export class WinScene extends Scene {
         this.advanceHitZone = hitZone;
 
         if (this.isMultiplayer) {
-            if (this.round < 4) {
+            if (this.round < this.maxRounds) {
                 if (!this.isQualified) {
                     if (networkManager.isHost) {
                         this.currentBtnColor = 'amber';
@@ -282,7 +285,7 @@ export class WinScene extends Scene {
                     } else {
                         this.currentBtnColor = 'red';
                         renderBtn(false);
-                        btnText.setText('ELIMINADO (TOP 50% LLENO)');
+                        btnText.setText(`ELIMINADO (CORTE PUESTO ${this.cutoffRank}°)`);
                     }
                 } else if (!networkManager.isHost) {
                     this.currentBtnColor = 'slate';
@@ -320,7 +323,7 @@ export class WinScene extends Scene {
                     hitZone.on('pointerout', () => renderBtn(false));
                 }
             } else {
-                // Round 4 (Grand Final) in Multiplayer
+                // Final round in Multiplayer (maxRounds reached)
                 if (networkManager.isHost) {
                     this.currentBtnColor = 'amber';
                     renderBtn(false);
@@ -359,12 +362,12 @@ export class WinScene extends Scene {
                     });
                 });
             } else {
-                this.currentBtnColor = this.isQualified && this.round < 4 ? 'green' : 'amber';
+                this.currentBtnColor = this.isQualified && this.round < this.maxRounds ? 'green' : 'amber';
                 renderBtn(false);
-                if (this.round < 4 && this.isQualified) {
+                if (this.round < this.maxRounds && this.isQualified) {
                     const nextShortName = nextRoundCfg?.name.split(' ')[0] || `R${this.round + 1}`;
                     btnText.setText(`AVANZAR A RONDA ${this.round + 1}: ${nextShortName}`);
-                } else if (this.round < 4) {
+                } else if (this.round < this.maxRounds) {
                     btnText.setText('REINTENTAR TORNEO (R1)');
                 } else {
                     btnText.setText('NUEVO TORNEO (DESDE R1)');
@@ -377,7 +380,7 @@ export class WinScene extends Scene {
                     this.cameras.main.fadeOut(180, 241, 245, 249);
                     this.time.delayedCall(180, () => {
                         this.scene.start('MainScene', {
-                            round: this.round < 4 && this.isQualified ? this.round + 1 : 1,
+                            round: this.round < this.maxRounds && this.isQualified ? this.round + 1 : 1,
                             skipGuide: true
                         });
                     });
@@ -456,7 +459,7 @@ export class WinScene extends Scene {
         pCard.lineStyle(1.5, 0xF59E0B, 1);
         pCard.strokeRect(cardX, podiumCardY, cardW, podiumCardH);
 
-        const cardTitle = this.singleMapMode ? `PODIO ETAPA ${this.round} (TOP 3)` : (this.round === 4 ? 'PODIO FINAL DE CAMPEONATO (TOP 3)' : 'PODIO DE SALA (TOP 3)');
+        const cardTitle = this.singleMapMode ? `PODIO ETAPA ${this.round} (TOP 3)` : (this.round >= this.maxRounds ? 'PODIO FINAL DE CAMPEONATO (TOP 3)' : 'PODIO DE SALA (TOP 3)');
         this.add.text(cardX + 16, podiumCardY + 12, cardTitle, {
             fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
@@ -542,13 +545,16 @@ export class WinScene extends Scene {
         card.lineStyle(1, 0xCBD5E1, 1);
         card.strokeRect(cardX, cardY, cardW, cardH);
 
-        this.add.text(cardX + 16, cardY + 14, `TELEMETRIA TORNEO · RONDA ${this.round}/4`, {
+        const telemetryTitle = this.maxRounds === 1
+            ? 'TELEMETRIA · FINAL DIRECTA'
+            : `TELEMETRIA TORNEO · RONDA ${this.round}/${this.maxRounds}`;
+        this.add.text(cardX + 16, cardY + 14, telemetryTitle, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
         });
 
-        const statusStr = this.round === 4
+        const statusStr = this.round >= this.maxRounds
             ? (this.rank <= 3 ? '¡PODIO FINAL!' : 'FINALISTA')
             : (this.isQualified ? '¡CLASIFICADO!' : 'ELIMINADO');
         const statusCol = this.isQualified ? '#16A34A' : '#DC2626';
@@ -629,7 +635,7 @@ export class WinScene extends Scene {
 
     private createSinglePlayerCards(cardX: number, cardW: number): void {
         const currentCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
-        const nextCfg = this.round < 4 ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
+        const nextCfg = this.round < this.maxRounds ? TOURNAMENT_ROUNDS[this.round + 1] : undefined;
 
         // ── Card 1: Telemetria y Estado del Torneo ──
         const cardY = 168;
@@ -641,13 +647,16 @@ export class WinScene extends Scene {
         card.lineStyle(1, 0xCBD5E1, 1);
         card.strokeRect(cardX, cardY, cardW, cardH);
 
-        this.add.text(cardX + 16, cardY + 14, `BALANCE RONDA ${this.round}/4 · ${currentCfg.name}`, {
+        const balanceTitle = this.maxRounds === 1
+            ? `BALANCE · FINAL DIRECTA · ${currentCfg.name}`
+            : `BALANCE RONDA ${this.round}/${this.maxRounds} · ${currentCfg.name}`;
+        this.add.text(cardX + 16, cardY + 14, balanceTitle, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#64748B'
         });
 
-        const statusLabel = this.round === 4
+        const statusLabel = this.round >= this.maxRounds
             ? (this.rank <= 3 ? '¡PODIO FINAL!' : 'FINALISTA')
             : (this.isQualified ? '¡CLASIFICADO!' : 'ELIMINADO');
         const statusColor = this.isQualified ? '#16A34A' : '#DC2626';
@@ -685,7 +694,7 @@ export class WinScene extends Scene {
         nextCard.lineStyle(1, 0xCBD5E1, 1);
         nextCard.strokeRect(cardX, nextCardY, cardW, nextCardH);
 
-        if (this.round < 4 && this.isQualified && nextCfg) {
+        if (this.round < this.maxRounds && this.isQualified && nextCfg) {
             this.add.text(cardX + 16, nextCardY + 14, `PROXIMA ETAPA: ${nextCfg.stageName}`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
@@ -722,7 +731,7 @@ export class WinScene extends Scene {
                 color: '#334155',
                 wordWrap: { width: cardW - 32, useAdvancedWrap: true }
             });
-        } else if (this.round < 4) {
+        } else if (this.round < this.maxRounds) {
             this.add.text(cardX + 16, nextCardY + 14, `CORTE ELIMINATORIO ODS 7`, {
                 fontSize: '8px',
                 fontFamily: "'Press Start 2P', monospace",
@@ -838,9 +847,12 @@ export class WinScene extends Scene {
         if (typeof data.totalPlayers === 'number' && data.totalPlayers > 0) {
             this.totalPlayers = data.totalPlayers;
             this.rank = Math.max(1, Math.min(this.rank, this.totalPlayers));
-            if (this.round < 4) {
-                this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
+            if (this.round < this.maxRounds) {
+                this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
                 this.isQualified = this.rank <= this.cutoffRank;
+            } else {
+                this.cutoffRank = Math.min(3, this.totalPlayers);
+                this.isQualified = true;
             }
             if (this.subTitleText) {
                 this.subTitleText.setText(`SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`);
@@ -856,9 +868,12 @@ export class WinScene extends Scene {
         // 1.1 Adopt authoritative server rank if this finish is for the local player
         if (data.playerId === networkManager.playerId && typeof data.rank === 'number') {
             this.rank = Math.max(1, Math.min(data.rank, this.totalPlayers));
-            if (this.round < 4) {
-                this.cutoffRank = Math.max(1, Math.ceil(this.totalPlayers * 0.5));
+            if (this.round < this.maxRounds) {
+                this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
                 this.isQualified = this.rank <= this.cutoffRank;
+            } else {
+                this.cutoffRank = Math.min(3, this.totalPlayers);
+                this.isQualified = true;
             }
             if (this.posStatText) {
                 this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
@@ -964,14 +979,15 @@ export class WinScene extends Scene {
     }
 
     private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number; startAt?: number; serverTime?: number }): void => {
-        if (!this.isQualified) {
+        if (this.round < this.maxRounds && !this.isQualified) {
             // Eliminated players must not advance into the active race
             return;
         }
         this.cameras.main.fadeOut(180, 241, 245, 249);
         this.time.delayedCall(180, () => {
             this.scene.start('MainScene', {
-                round: data?.round || this.round + 1,
+                round: data?.round || (this.round < this.maxRounds ? this.round + 1 : 1),
+                maxRounds: this.maxRounds,
                 multiplayer: true,
                 skipGuide: true,
                 countdownSeconds: data?.countdownSeconds || 3,
@@ -994,7 +1010,7 @@ export class WinScene extends Scene {
         if (data?.wasHost && networkManager.isHost) {
             this.showLiveArrivalToast(pName, 0, 'ANFITRIÓN SALIÓ - ¡ERES HOST!');
             if (this.advanceBtnText && this.advanceHitZone && this.renderAdvanceBtn && this.isQualified) {
-                if (this.round < 4) {
+                if (this.round < this.maxRounds) {
                     this.currentBtnColor = 'green';
                     this.renderAdvanceBtn(false);
                     this.advanceBtnText.setText(`AVANZAR A RONDA ${this.round + 1} (HOST)`);

@@ -222,3 +222,50 @@ export const TOURNAMENT_ROUNDS: Record<number, TournamentRoundConfig> = {
 };
 
 export const MAIN_CIRCUIT: SingleCircuitConfig = TOURNAMENT_ROUNDS[1];
+
+export function computeTournamentMaxRounds(totalPlayers: number, singleMapMode?: boolean): number {
+    if (singleMapMode) return 1;
+    if (totalPlayers <= 2) return 1;
+    if (totalPlayers < 10) return 2;
+    return 4;
+}
+
+export function computeQualificationCutoff(round: number, maxRounds: number, totalPlayers: number): number {
+    if (round >= maxRounds) {
+        return Math.min(3, totalPlayers);
+    }
+    if (totalPlayers === 3 && round === 1) {
+        return 2;
+    }
+    return Math.max(2, Math.ceil(totalPlayers * 0.5));
+}
+
+export function getCutoffDescription(round: number, maxRounds: number, totalPlayers: number): string {
+    if (maxRounds === 1) {
+        return '¡FINAL DIRECTA (DUELO 1 VS 1)!';
+    }
+    if (round >= maxRounds) {
+        return '¡GRAN FINAL POR EL PODIO!';
+    }
+    if (totalPlayers === 3 && round === 1) {
+        return 'CLASIFICAN LOS 2 MEJORES A LA FINAL';
+    }
+    const cutoff = computeQualificationCutoff(round, maxRounds, totalPlayers);
+    return `CLASIFICA EL TOP 50% (MAX ${cutoff} PILOTOS)`;
+}
+
+export function getStartingGridX(slotIndex: number, totalPlayers: number): number {
+    if (totalPlayers <= 1) return 240;
+    if (totalPlayers === 2) {
+        return slotIndex === 0 ? 190 : 290;
+    }
+    if (totalPlayers === 3) {
+        const slots3 = [180, 240, 300];
+        return slots3[slotIndex % 3];
+    }
+    const minX = 160;
+    const maxX = 320;
+    const slots = Math.min(totalPlayers, 6);
+    const step = (maxX - minX) / Math.max(1, slots - 1);
+    return Math.round(minX + (slotIndex % slots) * step);
+}

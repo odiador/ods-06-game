@@ -634,8 +634,15 @@ export class MenuScene extends Scene {
         bannerGfx.strokeRect(cardX + 16, bannerY, cardW - 32, 40);
         lobbyContainer.add(bannerGfx);
 
-        const roomInfoText = this.add.text(width / 2, bannerY + 20, `SALA ACTIVA: [ ${networkManager.roomCode} ]`, {
-            fontSize: '11px',
+        const totalP = Math.max(1, networkManager.roomPlayers.length);
+        const formatStr = totalP <= 2
+            ? '1 RONDA (DUELO)'
+            : totalP < 10
+            ? '2 RONDAS (FINAL DIRECTA)'
+            : '4 RONDAS (TORNEO)';
+
+        const roomInfoText = this.add.text(width / 2, bannerY + 20, `SALA: [ ${networkManager.roomCode} ] · ${formatStr}`, {
+            fontSize: '9px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#15803D'
         }).setOrigin(0.5);
@@ -686,14 +693,19 @@ export class MenuScene extends Scene {
         }
 
         // Instructions
-        const roleMsg = networkManager.isHost
-            ? 'Eres el anfitrión. Presiona "INICIAR CARRERA" cuando todos estén listos.'
-            : 'Esperando a que el anfitrión inicie la carrera para todos...';
+        let roleMsg = '';
+        if (networkManager.isHost) {
+            roleMsg = totalP === 1
+                ? `⏳ Esperando a que se unan rivales con la clave [ ${networkManager.roomCode} ].`
+                : `¡${totalP} pilotos listos! Presiona INICIAR CARRERA para arrancar juntos.`;
+        } else {
+            roleMsg = 'Esperando a que el anfitrión inicie la carrera para todos...';
+        }
 
         const roleText = this.add.text(width / 2, cardY + 295, roleMsg, {
             fontSize: '11px',
             fontFamily: "'Outfit', sans-serif",
-            color: '#64748B',
+            color: totalP === 1 && networkManager.isHost ? '#D97706' : '#64748B',
             align: 'center',
             wordWrap: { width: cardW - 40, useAdvancedWrap: true }
         }).setOrigin(0.5, 0);
@@ -705,14 +717,15 @@ export class MenuScene extends Scene {
             const startBtn = this.add.graphics();
             startBtn.fillStyle(0x0F172A, 1);
             startBtn.fillRect(width / 2 - 130, startY, 260, 42);
-            startBtn.fillStyle(0x16A34A, 1);
+            startBtn.fillStyle(totalP === 1 ? 0xD97706 : 0x16A34A, 1);
             startBtn.fillRect(width / 2 - 128, startY + 2, 256, 38);
-            startBtn.fillStyle(0x15803D, 1);
+            startBtn.fillStyle(totalP === 1 ? 0xB45309 : 0x15803D, 1);
             startBtn.fillRect(width / 2 - 128, startY + 36, 256, 4);
             lobbyContainer.add(startBtn);
 
-            const startText = this.add.text(width / 2, startY + 21, 'INICIAR CARRERA', {
-                fontSize: '10px',
+            const btnTextLabel = totalP === 1 ? 'INICIAR (SOLO TÚ)' : `INICIAR CARRERA (${totalP}P)`;
+            const startText = this.add.text(width / 2, startY + 21, btnTextLabel, {
+                fontSize: '9px',
                 fontFamily: "'Press Start 2P', monospace",
                 color: '#FFFFFF'
             }).setOrigin(0.5);
@@ -870,7 +883,7 @@ export class MenuScene extends Scene {
         });
     }
 
-    private handleRaceCountdown = (data: { countdownSeconds: number; round?: number; startAt?: number; serverTime?: number }): void => {
+    private handleRaceCountdown = (data: { countdownSeconds: number; round?: number; maxRounds?: number; startAt?: number; serverTime?: number }): void => {
         if (this.isTransitioningToRace) return;
         this.isTransitioningToRace = true;
         this.closeMultiplayerModal();
@@ -879,6 +892,7 @@ export class MenuScene extends Scene {
             this.scene.start('MainScene', {
                 multiplayer: true,
                 round: data?.round || 1,
+                maxRounds: data?.maxRounds || networkManager.maxRounds,
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: data?.countdownSeconds || 3,
@@ -888,7 +902,7 @@ export class MenuScene extends Scene {
         });
     };
 
-    private handleRaceStarted = (data?: { round?: number; startAt?: number }): void => {
+    private handleRaceStarted = (data?: { round?: number; maxRounds?: number; startAt?: number }): void => {
         if (this.isTransitioningToRace) return;
         this.isTransitioningToRace = true;
         this.closeMultiplayerModal();
@@ -897,6 +911,7 @@ export class MenuScene extends Scene {
             this.scene.start('MainScene', {
                 multiplayer: true,
                 round: data?.round || 1,
+                maxRounds: data?.maxRounds || networkManager.maxRounds,
                 roomCode: networkManager.roomCode,
                 skipGuide: true,
                 countdownSeconds: 0,

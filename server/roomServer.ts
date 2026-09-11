@@ -14,6 +14,7 @@ export interface Player {
     finished: boolean;
     finishTimeMs: number;
     rank: number;
+    isQualified?: boolean;
 }
 
 export interface PlayerPublicInfo {
@@ -27,14 +28,48 @@ export interface PlayerPublicInfo {
     finished: boolean;
     finishTimeMs: number;
     rank: number;
+    isQualified?: boolean;
 }
 
 export interface Room {
     code: string;
     status: 'lobby' | 'countdown' | 'racing' | 'finished';
     currentRound: number;
+    maxRounds: number;
     players: Map<string, Player>;
     createdAt: number;
+}
+
+export function computeTournamentMaxRounds(totalPlayers: number): number {
+    if (totalPlayers <= 2) return 1;
+    if (totalPlayers < 10) return 2;
+    return 4;
+}
+
+export function computeQualificationCutoff(round: number, maxRounds: number, totalPlayers: number): number {
+    if (round >= maxRounds) {
+        return Math.min(3, totalPlayers);
+    }
+    if (totalPlayers === 3 && round === 1) {
+        return 2;
+    }
+    return Math.max(2, Math.ceil(totalPlayers * 0.5));
+}
+
+export function getStartingGridX(slotIndex: number, totalPlayers: number): number {
+    if (totalPlayers <= 1) return 240;
+    if (totalPlayers === 2) {
+        return slotIndex === 0 ? 190 : 290;
+    }
+    if (totalPlayers === 3) {
+        const slots3 = [180, 240, 300];
+        return slots3[slotIndex % 3];
+    }
+    const minX = 160;
+    const maxX = 320;
+    const slots = Math.min(totalPlayers, 6);
+    const step = (maxX - minX) / Math.max(1, slots - 1);
+    return Math.round(minX + (slotIndex % slots) * step);
 }
 
 export const MAX_PLAYERS_PER_ROOM = 50;
@@ -137,7 +172,7 @@ export class RoomManager {
                 const playerId = Math.random().toString(36).substring(2, 9);
 
                 const room = this.getOrCreateRoom(roomCode);
-                if (room.status !== 'lobby') {
+                if (room.status === 'countdown' || room.status === 'racing') {
                     this.sendTo(ws, {
                         type: 'ROOM_ERROR',
                         message: 'CARRERA EN CURSO (NO SE PUEDE UNIR)'
@@ -155,6 +190,7 @@ export class RoomManager {
 
                 const isHost = room.players.size === 0;
                 const playerColor = getPlayerColor(room.players.size);
+                const startingX = getStartingGridX(room.players.size, room.players.size + 1);
 
                 const player: Player = {
                     id: playerId,
@@ -163,16 +199,18 @@ export class RoomManager {
                     roomCode,
                     isHost,
                     color: playerColor,
-                    x: 240,
+                    x: startingX,
                     distance: 0,
                     speed: 45,
                     finished: false,
                     finishTimeMs: 0,
                     rank: 0,
+                    isQualified: true,
                 };
 
                 room.players.set(playerId, player);
                 setSession(playerId, roomCode);
+                room.maxRounds = computeTournamentMaxRounds(room.players.size);
 
                 // Confirm join to client
                 this.sendTo(ws, {
@@ -182,6 +220,8 @@ export class RoomManager {
                     isHost,
                     players: this.getPublicPlayers(room),
                     status: room.status,
+                    maxRounds: room.maxRounds,
+                    round: room.currentRound,
                 });
 
                 // Notify others in room
@@ -190,6 +230,8 @@ export class RoomManager {
                     roomCode,
                     players: this.getPublicPlayers(room),
                     status: room.status,
+                    maxRounds: room.maxRounds,
+                    round: room.currentRound,
                 }, playerId);
 
                 break;
@@ -214,17 +256,37 @@ export class RoomManager {
                     return;
                 }
 
-                const round = Number(msg.round) || room.currentRound || 1;
+                let round = Number(msg.round) || room.currentRound || 1;
+                if (round === 1) {
+                    room.maxRounds = computeTournamentMaxRounds(room.players.size);
+                    for (const p of room.players.values()) {
+                        p.isQualified = true;
+                    }
+                }
+                if (round > room.maxRounds) {
+                    round = 1;
+                    room.maxRounds = computeTournamentMaxRounds(room.players.size);
+                    for (const p of room.players.values()) {
+                        p.isQualified = true;
+                    }
+                }
                 room.currentRound = round;
                 room.status = 'countdown';
 
-                // Reset player race stats for the round
-                for (const p of room.players.values()) {
+                // Determine active racers for this round (Round 1: all players, Round > 1: only qualified)
+                const activeRacers = this.getActivePlayers(room);
+                const totalActive = activeRacers.length;
+
+                // Reset player race stats for the round and assign starting grid positions
+                let pIndex = 0;
+                for (const p of activeRacers) {
                     p.finished = false;
                     p.finishTimeMs = 0;
                     p.distance = 0;
                     p.speed = 45;
                     p.rank = 0;
+                    p.x = getStartingGridX(pIndex, totalActive);
+                    pIndex++;
                 }
 
                 const now = Date.now();
@@ -234,21 +296,26 @@ export class RoomManager {
                 this.broadcast(roomCode, {
                     type: 'RACE_COUNTDOWN',
                     round,
+                    maxRounds: room.maxRounds,
                     countdownSeconds,
                     startAt,
                     serverTime: now,
+                    players: activeRacers.map(p => this.toPublicPlayer(p))
                 });
 
                 // Auto transition to racing at exact startAt
                 const delayMs = Math.max(0, startAt - Date.now());
                 setTimeout(() => {
                     if (this.rooms.has(roomCode)) {
-                        room.status = 'racing';
-                        this.broadcast(roomCode, {
-                            type: 'RACE_STARTED',
-                            round,
-                            startAt,
-                        });
+                        if (room.status === 'countdown') {
+                            room.status = 'racing';
+                            this.broadcast(roomCode, {
+                                type: 'RACE_STARTED',
+                                round,
+                                maxRounds: room.maxRounds,
+                                startAt,
+                            });
+                        }
                     }
                 }, delayMs);
                 break;
@@ -279,7 +346,7 @@ export class RoomManager {
                 // Broadcast player position to all peers in the room
                 this.broadcast(roomCode, {
                     type: 'PLAYERS_STATE',
-                    players: this.getPublicPlayers(room),
+                    players: this.getActivePlayers(room).map(p => this.toPublicPlayer(p)),
                 }, playerId);
                 break;
             }
@@ -293,12 +360,13 @@ export class RoomManager {
                 const player = room.players.get(playerId);
                 if (!player || player.finished) return;
 
-                const alreadyFinished = Array.from(room.players.values()).filter(p => p.finished).length;
+                const activeRacers = this.getActivePlayers(room);
+                const alreadyFinished = activeRacers.filter(p => p.finished).length;
                 player.finished = true;
                 player.finishTimeMs = Number(msg.timeMs) || Date.now();
-                player.rank = Math.min(room.players.size, alreadyFinished + 1);
+                player.rank = Math.min(activeRacers.length, alreadyFinished + 1);
 
-                const finishedList = Array.from(room.players.values())
+                const finishedList = activeRacers
                     .filter(p => p.finished)
                     .sort((a, b) => a.rank - b.rank);
 
@@ -311,12 +379,20 @@ export class RoomManager {
                     color: p.color
                 }));
 
-                const totalPlayers = room.players.size;
-                const cutoff = Math.max(1, Math.ceil(totalPlayers / 2));
+                const totalPlayers = activeRacers.length;
+                const cutoff = computeQualificationCutoff(room.currentRound, room.maxRounds, totalPlayers);
                 const firstHalfComplete = finishedList.length >= cutoff;
 
-                if (firstHalfComplete && room.status === 'racing') {
+                player.isQualified = player.rank <= cutoff;
+
+                if (firstHalfComplete && (room.status === 'racing' || room.status === 'countdown')) {
                     room.status = 'finished';
+                    // Disqualify any active racer who did not finish by cutoff
+                    for (const p of activeRacers) {
+                        if (!p.finished) {
+                            p.isQualified = false;
+                        }
+                    }
                 }
 
                 this.broadcast(roomCode, {
@@ -329,6 +405,7 @@ export class RoomManager {
                     podium,
                     totalPlayers,
                     cutoff,
+                    maxRounds: room.maxRounds,
                     firstHalfComplete,
                     finishedCount: finishedList.length
                 });
@@ -348,6 +425,9 @@ export class RoomManager {
             this.rooms.delete(roomCode);
             return;
         }
+
+        // Update max rounds according to new player count
+        room.maxRounds = computeTournamentMaxRounds(room.players.size);
 
         // If host left, appoint new host
         let newHostId: string | undefined;
@@ -374,6 +454,7 @@ export class RoomManager {
             newHostName,
             players: publicPlayers,
             status: room.status,
+            maxRounds: room.maxRounds,
         });
 
         this.broadcast(roomCode, {
@@ -382,6 +463,7 @@ export class RoomManager {
             players: publicPlayers,
             status: room.status,
             leftPlayerId: playerId,
+            maxRounds: room.maxRounds,
         });
     }
 
@@ -392,6 +474,7 @@ export class RoomManager {
                 code,
                 status: 'lobby',
                 currentRound: 1,
+                maxRounds: 4,
                 players: new Map(),
                 createdAt: Date.now(),
             };
@@ -400,8 +483,8 @@ export class RoomManager {
         return room;
     }
 
-    private getPublicPlayers(room: Room): PlayerPublicInfo[] {
-        return Array.from(room.players.values()).map(p => ({
+    private toPublicPlayer(p: Player): PlayerPublicInfo {
+        return {
             id: p.id,
             name: p.name,
             isHost: p.isHost,
@@ -412,7 +495,16 @@ export class RoomManager {
             finished: p.finished,
             finishTimeMs: p.finishTimeMs,
             rank: p.rank,
-        }));
+            isQualified: p.isQualified !== false,
+        };
+    }
+
+    private getPublicPlayers(room: Room): PlayerPublicInfo[] {
+        return Array.from(room.players.values()).map(p => this.toPublicPlayer(p));
+    }
+
+    private getActivePlayers(room: Room): Player[] {
+        return Array.from(room.players.values()).filter(p => room.currentRound === 1 || p.isQualified !== false);
     }
 
     private sendTo(ws: WebSocket, data: any): void {

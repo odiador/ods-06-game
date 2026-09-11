@@ -328,4 +328,195 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
         await ctx1.close();
         await ctx2.close();
     });
+
+    test('2-player duel format: maxRounds is 1, cars start in separated lanes, and finishes directly at Grand Final', async ({ browser }) => {
+        const roomCode = 'ODS_DUEL';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+
+        await p1.goto(`/?room=${roomCode}&name=DUEL_A`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(1000);
+
+        await p2.goto(`/?room=${roomCode}&name=DUEL_B`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(1000);
+
+        // Verify room configured with maxRounds = 1 for 2 players
+        const maxRoundsP1 = await p1.evaluate(() => (window as any).networkManager?.maxRounds);
+        const maxRoundsP2 = await p2.evaluate(() => (window as any).networkManager?.maxRounds);
+        expect(maxRoundsP1).toBe(1);
+        expect(maxRoundsP2).toBe(1);
+
+        // Start race
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 10000 });
+
+        await p2.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('MainScene');
+        }, { timeout: 10000 });
+
+        // Verify separated starting lanes (190 vs 290)
+        const p1GliderX = await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            return main?.glider?.x;
+        });
+        const p2GliderX = await p2.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            return main?.glider?.x;
+        });
+        expect(Math.abs(p1GliderX - p2GliderX)).toBeGreaterThanOrEqual(80);
+
+        // Verify HUD round format is 'FINAL DIRECTA'
+        const hudText = await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const hud = game?.scene?.getScene('HudScene') as any;
+            return hud?.maxRounds;
+        });
+        expect(hudText).toBe(1);
+
+        // Finish race for both players
+        await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            main?.onFinishRace();
+        });
+        await p2.waitForTimeout(300);
+        await p2.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const main = game?.scene?.getScene('MainScene') as any;
+            main?.onFinishRace();
+        });
+
+        // Wait for WinScene
+        await p1.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('WinScene');
+        }, { timeout: 10000 });
+
+        await p2.waitForFunction(() => {
+            const game = (window as any).__phaserGame;
+            return game?.scene?.isActive('WinScene');
+        }, { timeout: 10000 });
+
+        // Verify Host on WinScene sees NUEVO TORNEO (HOST) because maxRounds === 1 (cannot advance to round 2)
+        const hostBtnText = await p1.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const win = game?.scene?.getScene('WinScene') as any;
+            return win?.advanceBtnText?.text;
+        });
+        expect(hostBtnText).toContain('NUEVO TORNEO');
+
+        const clientBtnText = await p2.evaluate(() => {
+            const game = (window as any).__phaserGame;
+            const win = game?.scene?.getScene('WinScene') as any;
+            return win?.advanceBtnText?.text;
+        });
+        expect(clientBtnText).toContain('FIN DEL TORNEO');
+
+        await ctx1.close();
+        await ctx2.close();
+    });
+
+    test('3-player tournament: maxRounds is 2, round 1 qualifies top 2 and eliminates 3rd, passing to 2 players in round 2', async ({ browser }) => {
+        test.setTimeout(60000);
+        const roomCode = 'ODS_3P';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const ctx3 = await browser.newContext({ viewport: { width: 480, height: 960 } });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+        const p3 = await ctx3.newPage();
+
+        await p1.goto(`/?room=${roomCode}&name=TOP_1`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(800);
+
+        await p2.goto(`/?room=${roomCode}&name=TOP_2`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(800);
+
+        await p3.goto(`/?room=${roomCode}&name=TOP_3`);
+        await p3.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p3.waitForTimeout(800);
+
+        // Verify room maxRounds is 2 for 3 players
+        const maxRoundsP1 = await p1.evaluate(() => (window as any).networkManager?.maxRounds);
+        expect(maxRoundsP1).toBe(2);
+
+        // Start Round 1
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+            p3.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 })
+        ]);
+
+        // Finish in order: P1 (1st), P2 (2nd), P3 (3rd)
+        await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+        await p2.waitForTimeout(400);
+        await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+        await p3.waitForTimeout(400);
+        await p3.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+
+        // Wait for all to enter WinScene
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+            p3.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 })
+        ]);
+
+        // Verify qualification: P1 qualified, P2 qualified, P3 eliminated (cutoff = 2)
+        const p1Qual = await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.isQualified);
+        const p2Qual = await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.isQualified);
+        const p3Qual = await p3.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.isQualified);
+        expect(p1Qual).toBe(true);
+        expect(p2Qual).toBe(true);
+        expect(p3Qual).toBe(false);
+
+        // Verify P3 button indicates eliminated
+        const p3BtnText = await p3.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.advanceBtnText?.text);
+        expect(p3BtnText).toContain('ELIMINADO');
+
+        // Wait for podium timer on Host (P1) and advance to Round 2
+        await p1.waitForTimeout(3200);
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(2);
+        });
+
+        // P1 and P2 transition to Round 2 MainScene
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 })
+        ]);
+
+        // P3 must remain on WinScene (eliminated)
+        const p3StillOnWin = await p3.evaluate(() => (window as any).__phaserGame?.scene?.isActive('WinScene'));
+        expect(p3StillOnWin).toBe(true);
+
+        // Verify active racers in Round 2 is 2 (passed from 3 to 2)
+        const p1Round2Players = await p1.evaluate(() => {
+            const main = (window as any).__phaserGame?.scene?.getScene('MainScene') as any;
+            return main?.totalTournamentPlayers;
+        });
+        expect(p1Round2Players).toBe(2);
+
+        await ctx1.close();
+        await ctx2.close();
+        await ctx3.close();
+    });
 });

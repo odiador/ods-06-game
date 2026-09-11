@@ -35,6 +35,7 @@ export class NetworkManager {
     public roomPodium: PodiumEntry[] = [];
     public myFinishRank: number = 0;
     public totalPlayersInRoom: number = 1;
+    public maxRounds: number = 4;
     public serverStartAt: number = 0;
     public serverClockOffset: number = 0;
 
@@ -132,11 +133,15 @@ export class NetworkManager {
                 this.isHost = data.isHost;
                 this.isInRoom = true;
                 this.roomPlayers = data.players || [];
+                this.totalPlayersInRoom = this.roomPlayers.length;
+                this.maxRounds = data.maxRounds || (this.totalPlayersInRoom <= 2 ? 1 : this.totalPlayersInRoom < 10 ? 2 : 4);
                 EventBus.emit(GameEvents.ROOM_JOINED, data);
                 break;
 
             case 'ROOM_UPDATE':
                 this.roomPlayers = data.players || [];
+                this.totalPlayersInRoom = this.roomPlayers.length;
+                if (data.maxRounds) this.maxRounds = data.maxRounds;
                 const meInUpdate = this.roomPlayers.find(p => p.id === this.playerId);
                 if (meInUpdate) {
                     this.isHost = meInUpdate.isHost;
@@ -148,6 +153,11 @@ export class NetworkManager {
                 if (typeof data.serverTime === 'number' && typeof data.startAt === 'number') {
                     this.serverClockOffset = data.serverTime - Date.now();
                     this.serverStartAt = data.startAt;
+                }
+                if (data.maxRounds) this.maxRounds = data.maxRounds;
+                if (data.players) {
+                    this.roomPlayers = data.players;
+                    this.totalPlayersInRoom = this.roomPlayers.length;
                 }
                 this.roomPodium = [];
                 this.myFinishRank = 0;
@@ -161,6 +171,7 @@ export class NetworkManager {
                 break;
 
             case 'RACE_STARTED':
+                if (data.maxRounds) this.maxRounds = data.maxRounds;
                 this.roomPodium = [];
                 this.myFinishRank = 0;
                 this.roomPlayers.forEach(p => {
@@ -187,11 +198,16 @@ export class NetworkManager {
                 if (data.totalPlayers) {
                     this.totalPlayersInRoom = data.totalPlayers;
                 }
+                if (data.maxRounds) {
+                    this.maxRounds = data.maxRounds;
+                }
                 EventBus.emit(GameEvents.PLAYER_FINISHED, data);
                 break;
 
             case 'PLAYER_LEFT':
                 this.roomPlayers = data.players || [];
+                this.totalPlayersInRoom = this.roomPlayers.length;
+                if (data.maxRounds) this.maxRounds = data.maxRounds;
                 if (data.newHostId) {
                     this.isHost = data.newHostId === this.playerId;
                 } else {
@@ -284,6 +300,7 @@ export class NetworkManager {
         this.isHost = false;
         this.roomPlayers = [];
         this.roomPodium = [];
+        this.maxRounds = 4;
         this.serverStartAt = 0;
         this.serverClockOffset = 0;
     }

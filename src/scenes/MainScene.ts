@@ -4,7 +4,7 @@ import { WindGlider } from '../gameobjects/WindGlider';
 import { WindTurbo } from '../gameobjects/WindTurbo';
 import { EventBus, GameEvents } from '../systems/EventBus';
 import { SoundFX } from '../systems/SoundFX';
-import { TOURNAMENT_ROUNDS, TournamentRoundConfig } from '../types/game';
+import { TOURNAMENT_ROUNDS, TournamentRoundConfig, computeTournamentMaxRounds, computeQualificationCutoff, getCutoffDescription } from '../types/game';
 import { InitialGuideModal } from '../ui/InitialGuideModal';
 import { networkManager, RemotePlayerInfo } from '../systems/NetworkManager';
 
@@ -31,6 +31,7 @@ export class MainScene extends Scene {
 
     // Tournament configuration
     private round: number = 1;
+    private maxRounds: number = 4;
     private currentCircuit: TournamentRoundConfig = TOURNAMENT_ROUNDS[1];
     private totalTournamentPlayers: number = 50;
     private qualifiedCutoff: number = 25;
@@ -93,6 +94,7 @@ export class MainScene extends Scene {
 
     init(data?: {
         round?: number;
+        maxRounds?: number;
         skipGuide?: boolean;
         multiplayer?: boolean;
         roomCode?: string;
@@ -135,13 +137,15 @@ export class MainScene extends Scene {
         }
         this.lastCountdownSec = -1;
 
-        if (this.isMultiplayer) {
-            this.totalTournamentPlayers = networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 50;
-        } else {
-            this.totalTournamentPlayers = this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6;
-        }
-        this.qualifiedCutoff = this.round === 4 ? 3 : Math.ceil(this.totalTournamentPlayers * (this.currentCircuit.qualifyCutoffPct || 0.5));
         this.singleMapMode = data?.singleMapMode === true;
+        if (this.isMultiplayer) {
+            this.totalTournamentPlayers = networkManager.totalPlayersInRoom || networkManager.roomPlayers.length || 2;
+            this.maxRounds = data?.maxRounds || networkManager.maxRounds || computeTournamentMaxRounds(this.totalTournamentPlayers, this.singleMapMode);
+        } else {
+            this.totalTournamentPlayers = this.singleMapMode ? 1 : (this.round === 1 ? 50 : this.round === 2 ? 25 : this.round === 3 ? 12 : 6);
+            this.maxRounds = this.singleMapMode ? 1 : 4;
+        }
+        this.qualifiedCutoff = computeQualificationCutoff(this.round, this.maxRounds, this.totalTournamentPlayers);
         (window as any).__gameActive = false;
     }
 
@@ -153,11 +157,13 @@ export class MainScene extends Scene {
 
         // Ensure clean HUD lifecycle with current round info
         this.scene.stop('HudScene');
+        const dynCutoffDesc = getCutoffDescription(this.round, this.maxRounds, this.totalTournamentPlayers);
         this.scene.launch('HudScene', {
             targetDistance: this.targetDistance,
             round: this.round,
+            maxRounds: this.maxRounds,
             circuitName: this.currentCircuit.name,
-            cutoffDescription: this.currentCircuit.cutoffDescription
+            cutoffDescription: dynCutoffDesc
         });
 
         // ── 1. Track & Borders ──
@@ -200,7 +206,9 @@ export class MainScene extends Scene {
         }
 
         // ── 2. Glider / Speeder ──
-        this.glider = new WindGlider(this, width / 2, height - 160, this.currentCircuit.vehicleKey, this.currentCircuit.themeColorHex);
+        const myInfo = this.isMultiplayer ? networkManager.roomPlayers.find(p => p.id === networkManager.playerId) : undefined;
+        const initialGliderX = (this.isMultiplayer && myInfo && typeof myInfo.x === 'number') ? myInfo.x : width / 2;
+        this.glider = new WindGlider(this, initialGliderX, height - 160, this.currentCircuit.vehicleKey, this.currentCircuit.themeColorHex);
 
         // ── 3. Groups & Overlaps ──
         this.turbos = this.physics.add.group({ runChildUpdate: false });
@@ -859,6 +867,11 @@ export class MainScene extends Scene {
         });
     }
 
+    public onFinishRace(): void {
+        this.isRaceActive = true;
+        this.finishRace();
+    }
+
     private finishRace(): void {
         if (!this.isRaceActive || this.hasFinished) return;
         this.isRaceActive = false;
@@ -930,6 +943,7 @@ export class MainScene extends Scene {
             this.scene.start('WinScene', {
                 mode: 'race',
                 round: this.round,
+                maxRounds: this.maxRounds,
                 time: totalTimeSeconds,
                 kwh: this.cleanKwh,
                 distance: this.targetDistance,

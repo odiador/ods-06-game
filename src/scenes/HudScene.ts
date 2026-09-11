@@ -13,14 +13,16 @@ export class HudScene extends Scene {
     private round: number = 1;
     private circuitName: string = 'COLINAS EOLICAS';
     private cutoffDescription: string = 'CLASIFICAN TOP 50%';
+    private maxRounds: number = 4;
 
     constructor() {
         super('HudScene');
     }
 
-    init(data: { targetDistance?: number; round?: number; circuitName?: string; cutoffDescription?: string }): void {
+    init(data: { targetDistance?: number; round?: number; maxRounds?: number; circuitName?: string; cutoffDescription?: string }): void {
         this.targetDistance = data.targetDistance || 2030;
         this.round = data.round || 1;
+        this.maxRounds = data.maxRounds || 4;
         this.circuitName = data.circuitName || 'COLINAS EOLICAS';
         this.cutoffDescription = data.cutoffDescription || 'CLASIFICAN TOP 50%';
     }
@@ -49,7 +51,10 @@ export class HudScene extends Scene {
         });
 
         // Round & Qualification Cutoff (Center Top)
-        this.add.text(width / 2, 12, `RONDA ${this.round}/4 · ${this.circuitName}`, {
+        const roundTitle = this.maxRounds === 1
+            ? `FINAL DIRECTA · ${this.circuitName}`
+            : `RONDA ${this.round}/${this.maxRounds} · ${this.circuitName}`;
+        this.add.text(width / 2, 12, roundTitle, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#0F172A'
