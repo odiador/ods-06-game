@@ -258,23 +258,18 @@ export class RoomDurableObject extends DurableObject {
 
                     const allSockets = this.ctx.getWebSockets();
                     let round = Number(msg.round) || this.currentRound || 1;
-                    if (round === 1) {
-                        this.maxRounds = computeTournamentMaxRounds(allSockets.length);
-                        for (const s of allSockets) {
-                            const p = s.deserializeAttachment() as PlayerData | null;
-                            if (p) {
-                                p.isQualified = true;
-                                s.serializeAttachment(p);
-                            }
-                        }
-                    }
-                    if (round > this.maxRounds) {
+                    if (round === 1 || round > this.maxRounds) {
                         round = 1;
                         this.maxRounds = computeTournamentMaxRounds(allSockets.length);
                         for (const s of allSockets) {
                             const p = s.deserializeAttachment() as PlayerData | null;
                             if (p) {
                                 p.isQualified = true;
+                                p.finished = false;
+                                p.finishTimeMs = 0;
+                                p.distance = 0;
+                                p.speed = 45;
+                                p.rank = 0;
                                 s.serializeAttachment(p);
                             }
                         }
@@ -304,6 +299,20 @@ export class RoomDurableObject extends DurableObject {
                         }
                     }
 
+                    // Reset any non-active sockets finish stats
+                    for (const s of allSockets) {
+                        if (!activeSockets.includes(s)) {
+                            const p = s.deserializeAttachment() as PlayerData | null;
+                            if (p) {
+                                p.finished = false;
+                                p.finishTimeMs = 0;
+                                p.rank = 0;
+                                p.distance = 0;
+                                s.serializeAttachment(p);
+                            }
+                        }
+                    }
+
                     const now = Date.now();
                     const countdownSeconds = 3;
                     const startAt = now + 3500;
@@ -318,8 +327,8 @@ export class RoomDurableObject extends DurableObject {
                         players: this.getActivePlayers(),
                     });
 
-                    // Countdown timer
-                    const delayMs = Math.max(0, startAt - Date.now());
+                    // Transition to racing at startAt
+                    const delay = Math.max(0, startAt - Date.now());
                     setTimeout(() => {
                         if (this.roomStatus === 'countdown') {
                             this.roomStatus = 'racing';
@@ -330,7 +339,21 @@ export class RoomDurableObject extends DurableObject {
                                 startAt,
                             });
                         }
-                    }, delayMs);
+                    }, delay);
+                    break;
+                }
+
+                case 'LEAVE_ROOM': {
+                    if (currentData) {
+                        this.broadcast({
+                            type: 'PLAYER_LEFT',
+                            playerId: currentData.id,
+                            playerName: currentData.name,
+                            wasHost: currentData.isHost,
+                            players: this.getAllPlayers().filter(p => p.id !== currentData.id),
+                        }, ws);
+                    }
+                    ws.close();
                     break;
                 }
 
@@ -361,6 +384,13 @@ export class RoomDurableObject extends DurableObject {
                     currentData.finishTimeMs = Number(msg.timeMs) || Date.now();
                     currentData.rank = Math.min(activeBefore.length, alreadyFinished + 1);
 
+                    const totalPlayers = activeBefore.length;
+                    const cutoff = computeQualificationCutoff(this.currentRound, this.maxRounds, totalPlayers);
+                    currentData.isQualified = currentData.rank <= cutoff;
+
+                    // Serialize immediately so getActivePlayers sees the updated state
+                    ws.serializeAttachment(currentData);
+
                     const activeAfter = this.getActivePlayers();
                     const finishedList = activeAfter
                         .filter(p => p.finished)
@@ -375,12 +405,7 @@ export class RoomDurableObject extends DurableObject {
                         color: p.color
                     }));
 
-                    const totalPlayers = activeAfter.length;
-                    const cutoff = computeQualificationCutoff(this.currentRound, this.maxRounds, totalPlayers);
                     const firstHalfComplete = finishedList.length >= cutoff;
-
-                    currentData.isQualified = currentData.rank <= cutoff;
-                    ws.serializeAttachment(currentData);
 
                     if (firstHalfComplete && (this.roomStatus === 'racing' || this.roomStatus === 'countdown')) {
                         this.roomStatus = 'finished';

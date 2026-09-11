@@ -559,4 +559,116 @@ test.describe('ODS 7 Multiplayer Room Suite (WebSocket on Port 5175/5199)', () =
         });
         expect(hasFinishedHidden).toBe(false);
     });
+
+    test('resets positions, finishes, and podium cleanly in second game (new tournament) and between rounds', async ({ browser }) => {
+        test.setTimeout(60000);
+        const roomCode = 'ODS_RST';
+        const ctx1 = await browser.newContext({ viewport: { width: 480, height: 960 }, deviceScaleFactor: 1 });
+        const ctx2 = await browser.newContext({ viewport: { width: 480, height: 960 }, deviceScaleFactor: 1 });
+        const p1 = await ctx1.newPage();
+        const p2 = await ctx2.newPage();
+
+        // 1. Join room
+        await p1.goto(`/?room=${roomCode}&name=PILOTO_A`);
+        await p1.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p1.waitForTimeout(800);
+
+        await p2.goto(`/?room=${roomCode}&name=PILOTO_B`);
+        await p2.waitForSelector('#phaser-container canvas', { timeout: 10000 });
+        await p2.waitForTimeout(800);
+
+        // 2. Start Game 1 (Direct final with 2 players)
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+        ]);
+
+        // In Game 1: P1 finishes 1st, P2 finishes 2nd
+        await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+        await p2.waitForTimeout(300);
+        await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+        ]);
+
+        // Verify Game 1 podium & ranks: P1 is 1st, P2 is 2nd
+        const p1RankGame1 = await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.rank);
+        const p2RankGame1 = await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.rank);
+        expect(p1RankGame1).toBe(1);
+        expect(p2RankGame1).toBe(2);
+
+        // Wait for host podium delay
+        await p1.waitForTimeout(3200);
+
+        // 3. Host clicks NUEVO TORNEO (Game 2)
+        await p1.evaluate(() => {
+            (window as any).networkManager?.startRace(1);
+        });
+
+        // Both players transition into Game 2 MainScene
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('MainScene'), { timeout: 10000 }),
+        ]);
+
+        // 4. Verify that in Game 2, finish ranks, podium, and finished flags are completely reset!
+        const p1StatsInGame2 = await p1.evaluate(() => ({
+            myFinishRank: (window as any).networkManager?.myFinishRank,
+            podiumLen: (window as any).networkManager?.roomPodium?.length || 0,
+            playersFinishedCount: (window as any).networkManager?.roomPlayers?.filter((p: any) => p.finished)?.length || 0,
+        }));
+        expect(p1StatsInGame2.myFinishRank).toBe(0);
+        expect(p1StatsInGame2.podiumLen).toBe(0);
+        expect(p1StatsInGame2.playersFinishedCount).toBe(0);
+
+        // Wait for Game 2 countdown (3.5s) to complete
+        await p1.waitForTimeout(3800);
+
+        // 5. In Game 2: REVERSE the order! P2 finishes 1st, P1 finishes 2nd!
+        await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+        await p1.waitForTimeout(300);
+        await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('MainScene')?.onFinishRace());
+
+        await Promise.all([
+            p1.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+            p2.waitForFunction(() => (window as any).__phaserGame?.scene?.isActive('WinScene'), { timeout: 10000 }),
+        ]);
+
+        // 6. Verify Game 2 ranks & podium are inverted: P2 is now 1st, P1 is now 2nd!
+        const p2RankGame2 = await p2.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.rank);
+        const p1RankGame2 = await p1.evaluate(() => (window as any).__phaserGame?.scene?.getScene('WinScene')?.rank);
+        expect(p2RankGame2).toBe(1);
+        expect(p1RankGame2).toBe(2);
+
+        // Verify P2 sees itself as ★ TÚ ★ on 1st pedestal
+        const p2Pedestal1Name = await p2.evaluate(() => {
+            const win = (window as any).__phaserGame?.scene?.getScene('WinScene');
+            const slot1 = win?.pedestalSlots?.find((s: any) => s.rank === 1);
+            return slot1?.nameText?.text;
+        });
+        expect(p2Pedestal1Name).toBe('★ TÚ ★');
+
+        // Verify P1 sees itself as ★ TÚ ★ on 2nd pedestal and P2 on 1st pedestal
+        const p1Pedestal1Name = await p1.evaluate(() => {
+            const win = (window as any).__phaserGame?.scene?.getScene('WinScene');
+            const slot1 = win?.pedestalSlots?.find((s: any) => s.rank === 1);
+            return slot1?.nameText?.text;
+        });
+        const p1Pedestal2Name = await p1.evaluate(() => {
+            const win = (window as any).__phaserGame?.scene?.getScene('WinScene');
+            const slot2 = win?.pedestalSlots?.find((s: any) => s.rank === 2);
+            return slot2?.nameText?.text;
+        });
+        expect(p1Pedestal1Name).toContain('PILOTO');
+        expect(p1Pedestal2Name).toBe('★ TÚ ★');
+
+        await ctx1.close();
+        await ctx2.close();
+    });
 });

@@ -257,17 +257,16 @@ export class RoomManager {
                 }
 
                 let round = Number(msg.round) || room.currentRound || 1;
-                if (round === 1) {
-                    room.maxRounds = computeTournamentMaxRounds(room.players.size);
-                    for (const p of room.players.values()) {
-                        p.isQualified = true;
-                    }
-                }
-                if (round > room.maxRounds) {
+                if (round === 1 || round > room.maxRounds) {
                     round = 1;
                     room.maxRounds = computeTournamentMaxRounds(room.players.size);
                     for (const p of room.players.values()) {
                         p.isQualified = true;
+                        p.finished = false;
+                        p.finishTimeMs = 0;
+                        p.distance = 0;
+                        p.speed = 45;
+                        p.rank = 0;
                     }
                 }
                 room.currentRound = round;
@@ -287,6 +286,16 @@ export class RoomManager {
                     p.rank = 0;
                     p.x = getStartingGridX(pIndex, totalActive);
                     pIndex++;
+                }
+
+                // Ensure non-active spectators do not carry finished stats
+                for (const p of room.players.values()) {
+                    if (!activeRacers.includes(p)) {
+                        p.finished = false;
+                        p.finishTimeMs = 0;
+                        p.rank = 0;
+                        p.distance = 0;
+                    }
                 }
 
                 const now = Date.now();

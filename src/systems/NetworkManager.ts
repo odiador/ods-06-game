@@ -163,6 +163,7 @@ export class NetworkManager {
                 this.myFinishRank = 0;
                 this.roomPlayers.forEach(p => {
                     p.finished = false;
+                    p.finishTimeMs = 0;
                     p.distance = 0;
                     p.speed = 45;
                     p.rank = 0;
@@ -176,6 +177,7 @@ export class NetworkManager {
                 this.myFinishRank = 0;
                 this.roomPlayers.forEach(p => {
                     p.finished = false;
+                    p.finishTimeMs = 0;
                     p.distance = 0;
                     p.speed = 45;
                     p.rank = 0;
@@ -191,6 +193,12 @@ export class NetworkManager {
             case 'PLAYER_FINISHED':
                 if (data.playerId === this.playerId) {
                     this.myFinishRank = data.rank;
+                }
+                const pFinished = this.roomPlayers.find(p => p.id === data.playerId);
+                if (pFinished) {
+                    pFinished.finished = true;
+                    pFinished.rank = data.rank;
+                    if (data.finishTimeMs) pFinished.finishTimeMs = data.finishTimeMs;
                 }
                 if (data.podium && Array.isArray(data.podium)) {
                     this.roomPodium = data.podium;

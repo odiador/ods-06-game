@@ -44,6 +44,7 @@ export class WinScene extends Scene {
 
     private lessonTitleText!: Phaser.GameObjects.Text;
     private lessonBodyText!: Phaser.GameObjects.Text;
+    private bannerGfx?: Phaser.GameObjects.Graphics;
     private bannerTextObj?: Phaser.GameObjects.Text;
     private subTitleText?: Phaser.GameObjects.Text;
     private posStatText?: Phaser.GameObjects.Text;
@@ -59,6 +60,12 @@ export class WinScene extends Scene {
         nameText: Phaser.GameObjects.Text;
         timeText: Phaser.GameObjects.Text;
         isMe: boolean;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        bg: number;
+        border: number;
     }> = [];
 
     constructor() {
@@ -99,67 +106,19 @@ export class WinScene extends Scene {
 
         // ── 2. Top Header Banner ──
         const bannerY = 32;
-        const bannerW = width - 48;
-        const bannerX = 24;
-
-        const banner = this.add.graphics();
-        let bannerBgColor = 0xDCFCE7;
-        let bannerBorderColor = 0x16A34A;
-        let bannerTitle = '';
-        let bannerColor = '#15803D';
-
         const currentRoundCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
 
-        if (this.singleMapMode) {
-            bannerTitle = `CIRCUITO COMPLETADO · ${currentRoundCfg.name}`;
-            bannerColor = '#0284C7';
-            bannerBgColor = 0xE0F2FE;
-            bannerBorderColor = 0x0284C7;
-        } else if (this.round < this.maxRounds) {
-            if (this.isQualified) {
-                bannerTitle = `¡CLASIFICASTE A RONDA ${this.round + 1}! (${this.rank}° DE ${this.totalPlayers})`;
-                bannerColor = '#15803D';
-                bannerBgColor = 0xDCFCE7;
-                bannerBorderColor = 0x16A34A;
-            } else {
-                bannerTitle = `ELIMINADO EN RONDA ${this.round} (${this.rank}° DE ${this.totalPlayers})`;
-                bannerColor = '#DC2626';
-                bannerBgColor = 0xFEE2E2;
-                bannerBorderColor = 0xEF4444;
-            }
-        } else {
-            if (this.rank === 1) {
-                bannerTitle = `¡CAMPEON ORO 2030! 1° LUGAR DE ${this.totalPlayers}`;
-                bannerColor = '#B45309';
-                bannerBgColor = 0xFEF3C7;
-                bannerBorderColor = 0xF59E0B;
-            } else if (this.rank === 2) {
-                bannerTitle = `¡SUBCAMPEON PLATA! 2° LUGAR DE ${this.totalPlayers}`;
-                bannerColor = '#475569';
-                bannerBgColor = 0xF1F5F9;
-                bannerBorderColor = 0x94A3B8;
-            } else if (this.rank === 3) {
-                bannerTitle = `¡PODIO BRONCE! 3° LUGAR DE ${this.totalPlayers}`;
-                bannerColor = '#B45309';
-                bannerBgColor = 0xFFEDD5;
-                bannerBorderColor = 0xF97316;
-            } else {
-                bannerTitle = `¡FINALISTA DE LA SALA (${this.rank}° DE ${this.totalPlayers})!`;
-                bannerColor = '#0284C7';
-                bannerBgColor = 0xE0F2FE;
-                bannerBorderColor = 0x0284C7;
-            }
-        }
+        const cfg = this.getBannerConfig();
+        this.bannerGfx = this.add.graphics();
+        this.bannerGfx.fillStyle(cfg.bgColor, 1);
+        this.bannerGfx.fillRect(24, bannerY, width - 48, 36);
+        this.bannerGfx.lineStyle(1, cfg.borderColor, 1);
+        this.bannerGfx.strokeRect(24, bannerY, width - 48, 36);
 
-        banner.fillStyle(bannerBgColor, 1);
-        banner.fillRect(bannerX, bannerY, bannerW, 36);
-        banner.lineStyle(1, bannerBorderColor, 1);
-        banner.strokeRect(bannerX, bannerY, bannerW, 36);
-
-        this.bannerTextObj = this.add.text(width / 2, bannerY + 18, bannerTitle, {
+        this.bannerTextObj = this.add.text(width / 2, bannerY + 18, cfg.title, {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
-            color: bannerColor
+            color: cfg.color
         }).setOrigin(0.5);
 
         // ── 3. Animated Trophy / Vehicle Mascot ──
@@ -215,7 +174,7 @@ export class WinScene extends Scene {
         const cardX = 24;
         const cardW = width - 48;
 
-        if (this.round === 4 || this.isMultiplayer) {
+        if (this.round >= this.maxRounds || this.isMultiplayer) {
             this.createMultiplayerCards(cardX, cardW);
         } else {
             this.createSinglePlayerCards(cardX, cardW);
@@ -254,7 +213,7 @@ export class WinScene extends Scene {
         };
         const renderBtn = this.renderAdvanceBtn;
 
-        const btnText = this.add.text(width / 2, btnY + btnH / 2 - 1, '', {
+        const btnText = this.add.text(width / 2, btnY + btnH / 2 - 1, 'CONTINUAR', {
             fontSize: '8px',
             fontFamily: "'Press Start 2P', monospace",
             color: '#FFFFFF',
@@ -466,9 +425,9 @@ export class WinScene extends Scene {
             color: '#B45309'
         });
 
-        const p1 = this.podium[0] || (this.rank === 1 ? { name: 'TÚ', rank: 1, timeSec: this.finalTime } : { name: 'Oro', rank: 1, timeSec: this.finalTime });
-        const p2 = this.podium[1] || (this.rank === 2 ? { name: 'TÚ', rank: 2, timeSec: this.finalTime } : { name: 'Plata', rank: 2, timeSec: '--' });
-        const p3 = this.podium[2] || (this.rank === 3 ? { name: 'TÚ', rank: 3, timeSec: this.finalTime } : { name: 'Bronce', rank: 3, timeSec: '--' });
+        const p1 = this.podium.find(p => p.rank === 1) || (this.rank === 1 ? { name: 'TÚ', rank: 1, timeSec: this.finalTime } : { name: 'Oro', rank: 1, timeSec: this.finalTime });
+        const p2 = this.podium.find(p => p.rank === 2) || (this.rank === 2 ? { name: 'TÚ', rank: 2, timeSec: this.finalTime } : { name: 'Plata', rank: 2, timeSec: '--' });
+        const p3 = this.podium.find(p => p.rank === 3) || (this.rank === 3 ? { name: 'TÚ', rank: 3, timeSec: this.finalTime } : { name: 'Bronce', rank: 3, timeSec: '--' });
 
         const baseX = width / 2;
         const baseY = podiumCardY + 140;
@@ -519,7 +478,13 @@ export class WinScene extends Scene {
                 gfx,
                 nameText,
                 timeText,
-                isMe
+                isMe,
+                x: ped.x,
+                y: py,
+                w: ped.w,
+                h: ped.h,
+                bg: ped.bg,
+                border: ped.border
             });
         });
 
@@ -840,45 +805,148 @@ export class WinScene extends Scene {
         this.lessonBodyText.setText(lesson.text);
     }
 
+    private getBannerConfig(): { title: string; color: string; bgColor: number; borderColor: number } {
+        let bannerBgColor = 0xDCFCE7;
+        let bannerBorderColor = 0x16A34A;
+        let bannerTitle = '';
+        let bannerColor = '#15803D';
+
+        const currentRoundCfg = TOURNAMENT_ROUNDS[this.round] || TOURNAMENT_ROUNDS[1];
+
+        if (this.singleMapMode) {
+            bannerTitle = `CIRCUITO COMPLETADO · ${currentRoundCfg.name}`;
+            bannerColor = '#0284C7';
+            bannerBgColor = 0xE0F2FE;
+            bannerBorderColor = 0x0284C7;
+        } else if (this.round < this.maxRounds) {
+            if (this.isQualified) {
+                bannerTitle = `¡CLASIFICASTE A RONDA ${this.round + 1}! (${this.rank}° DE ${this.totalPlayers})`;
+                bannerColor = '#15803D';
+                bannerBgColor = 0xDCFCE7;
+                bannerBorderColor = 0x16A34A;
+            } else {
+                bannerTitle = `ELIMINADO EN RONDA ${this.round} (${this.rank}° DE ${this.totalPlayers})`;
+                bannerColor = '#DC2626';
+                bannerBgColor = 0xFEE2E2;
+                bannerBorderColor = 0xEF4444;
+            }
+        } else {
+            if (this.rank === 1) {
+                bannerTitle = `¡CAMPEON ORO 2030! 1° LUGAR DE ${this.totalPlayers}`;
+                bannerColor = '#B45309';
+                bannerBgColor = 0xFEF3C7;
+                bannerBorderColor = 0xF59E0B;
+            } else if (this.rank === 2) {
+                bannerTitle = `¡SUBCAMPEON PLATA! 2° LUGAR DE ${this.totalPlayers}`;
+                bannerColor = '#475569';
+                bannerBgColor = 0xF1F5F9;
+                bannerBorderColor = 0x94A3B8;
+            } else if (this.rank === 3) {
+                bannerTitle = `¡PODIO BRONCE! 3° LUGAR DE ${this.totalPlayers}`;
+                bannerColor = '#B45309';
+                bannerBgColor = 0xFFEDD5;
+                bannerBorderColor = 0xF97316;
+            } else {
+                bannerTitle = `¡FINALISTA DE LA SALA (${this.rank}° DE ${this.totalPlayers})!`;
+                bannerColor = '#0284C7';
+                bannerBgColor = 0xE0F2FE;
+                bannerBorderColor = 0x0284C7;
+            }
+        }
+        return { title: bannerTitle, color: bannerColor, bgColor: bannerBgColor, borderColor: bannerBorderColor };
+    }
+
+    private updateHeaderAndTelemetry(): void {
+        const { width } = this.scale;
+        const bannerY = 32;
+        const bannerW = width - 48;
+        const bannerX = 24;
+
+        const cfg = this.getBannerConfig();
+
+        if (this.bannerGfx) {
+            this.bannerGfx.clear();
+            this.bannerGfx.fillStyle(cfg.bgColor, 1);
+            this.bannerGfx.fillRect(bannerX, bannerY, bannerW, 36);
+            this.bannerGfx.lineStyle(1, cfg.borderColor, 1);
+            this.bannerGfx.strokeRect(bannerX, bannerY, bannerW, 36);
+        }
+
+        if (this.bannerTextObj) {
+            this.bannerTextObj.setText(cfg.title).setColor(cfg.color);
+        }
+
+        if (this.posStatText) {
+            this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
+        }
+    }
+
+    private refreshPodiumSlots(triggerArrivalRank?: number): void {
+        this.pedestalSlots.forEach(slot => {
+            const entry = this.podium.find(p => p.rank === slot.rank);
+            const isMe = (entry && entry.playerId === networkManager.playerId) || slot.rank === this.rank;
+            slot.isMe = isMe;
+
+            slot.gfx.clear();
+            slot.gfx.fillStyle(slot.bg, 1);
+            slot.gfx.fillRect(slot.x, slot.y, slot.w, slot.h);
+            slot.gfx.lineStyle(isMe ? 2.5 : 1.5, isMe ? 0x0284C7 : slot.border, 1);
+            slot.gfx.strokeRect(slot.x, slot.y, slot.w, slot.h);
+
+            const nameColor = isMe ? '#0284C7' : '#0F172A';
+            if (isMe) {
+                slot.nameText.setText('★ TÚ ★').setColor(nameColor);
+                slot.timeText.setText(`${this.finalTime}s`);
+            } else if (entry) {
+                const timeStr = entry.timeSec ? `${entry.timeSec}s` : (entry.finishTimeMs ? `${(entry.finishTimeMs / 1000).toFixed(1)}s` : '--');
+                slot.nameText.setText(entry.name.slice(0, 6)).setColor(nameColor);
+                slot.timeText.setText(timeStr);
+            } else {
+                const defaultTag = slot.rank === 1 ? 'Oro' : slot.rank === 2 ? 'Plata' : 'Bronce';
+                slot.nameText.setText(defaultTag).setColor(nameColor);
+                slot.timeText.setText('--');
+            }
+
+            if (triggerArrivalRank && slot.rank === triggerArrivalRank) {
+                this.tweens.add({
+                    targets: [slot.nameText, slot.timeText],
+                    scale: 1.3,
+                    duration: 180,
+                    yoyo: true,
+                    ease: 'Back.easeOut'
+                });
+                SoundFX.playCollect(2);
+            }
+        });
+    }
+
     private handlePeerFinished(data: any): void {
         if (!data) return;
 
         // 1. Update total players if more players arrived or connected
         if (typeof data.totalPlayers === 'number' && data.totalPlayers > 0) {
             this.totalPlayers = data.totalPlayers;
-            this.rank = Math.max(1, Math.min(this.rank, this.totalPlayers));
-            if (this.round < this.maxRounds) {
-                this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
-                this.isQualified = this.rank <= this.cutoffRank;
-            } else {
-                this.cutoffRank = Math.min(3, this.totalPlayers);
-                this.isQualified = true;
-            }
-            if (this.subTitleText) {
-                this.subTitleText.setText(`SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`);
-            }
-            if (this.bannerTextObj && this.rank === 1) {
-                this.bannerTextObj.setText(`¡CAMPEON ORO! 1° LUGAR DE ${this.totalPlayers}`);
-            }
-            if (this.posStatText) {
-                this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
-            }
         }
 
         // 1.1 Adopt authoritative server rank if this finish is for the local player
         if (data.playerId === networkManager.playerId && typeof data.rank === 'number') {
             this.rank = Math.max(1, Math.min(data.rank, this.totalPlayers));
-            if (this.round < this.maxRounds) {
-                this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
-                this.isQualified = this.rank <= this.cutoffRank;
-            } else {
-                this.cutoffRank = Math.min(3, this.totalPlayers);
-                this.isQualified = true;
-            }
-            if (this.posStatText) {
-                this.posStatText.setText(`${this.rank}° / ${this.totalPlayers}`);
-            }
         }
+
+        this.rank = Math.max(1, Math.min(this.rank, this.totalPlayers));
+        if (this.round < this.maxRounds) {
+            this.cutoffRank = computeQualificationCutoff(this.round, this.maxRounds, this.totalPlayers);
+            this.isQualified = this.rank <= this.cutoffRank;
+        } else {
+            this.cutoffRank = Math.min(3, this.totalPlayers);
+            this.isQualified = true;
+        }
+
+        if (this.subTitleText) {
+            this.subTitleText.setText(`SALA MULTIJUGADOR EN VIVO (${this.totalPlayers} PILOTOS)`);
+        }
+
+        this.updateHeaderAndTelemetry();
 
         // 2. Extract incoming podium entries
         const incomingPodium: PodiumEntry[] = Array.isArray(data.podium) ? data.podium : [];
@@ -890,32 +958,8 @@ export class WinScene extends Scene {
         const finishName = String(data.name || 'Piloto');
         const finishTimeSec = data.finishTimeMs ? (Number(data.finishTimeMs) / 1000).toFixed(1) : (data.timeSec || '--');
 
-        // 3. Update pedestal slots live (2°, 3°, or others)
-        this.pedestalSlots.forEach(slot => {
-            if (slot.isMe) return; // Never overwrite local player's spot
-
-            const entry = incomingPodium.find(p => p.rank === slot.rank);
-            if (entry) {
-                const timeStr = entry.timeSec ? `${entry.timeSec}s` : (entry.finishTimeMs ? `${(entry.finishTimeMs / 1000).toFixed(1)}s` : '--');
-                slot.nameText.setText(entry.name.slice(0, 6));
-                slot.timeText.setText(timeStr);
-            } else if (slot.rank === finishRank) {
-                slot.nameText.setText(finishName.slice(0, 6));
-                slot.timeText.setText(`${finishTimeSec}s`);
-            }
-
-            // If this slot was updated right now with this arrival
-            if (slot.rank === finishRank) {
-                this.tweens.add({
-                    targets: [slot.nameText, slot.timeText],
-                    scale: 1.3,
-                    duration: 180,
-                    yoyo: true,
-                    ease: 'Back.easeOut'
-                });
-                SoundFX.playCollect(2);
-            }
-        });
+        // 3. Update pedestal slots live
+        this.refreshPodiumSlots(finishRank);
 
         // 4. Floating arrival notification banner
         this.showLiveArrivalToast(finishName, finishRank, finishTimeSec);
@@ -979,14 +1023,18 @@ export class WinScene extends Scene {
     }
 
     private handleMultiplayerRaceStart = (data: { round?: number; countdownSeconds?: number; startAt?: number; serverTime?: number }): void => {
-        if (this.round < this.maxRounds && !this.isQualified) {
-            // Eliminated players must not advance into the active race
+        const nextRound = data?.round || (this.round < this.maxRounds ? this.round + 1 : 1);
+        if (nextRound !== 1 && this.round < this.maxRounds && !this.isQualified) {
+            // Eliminated players must not advance into the active race of the same tournament
             return;
+        }
+        if (nextRound === 1) {
+            this.isQualified = true;
         }
         this.cameras.main.fadeOut(180, 241, 245, 249);
         this.time.delayedCall(180, () => {
             this.scene.start('MainScene', {
-                round: data?.round || (this.round < this.maxRounds ? this.round + 1 : 1),
+                round: nextRound,
                 maxRounds: this.maxRounds,
                 multiplayer: true,
                 skipGuide: true,

@@ -896,7 +896,7 @@ export class MainScene extends Scene {
         if (this.isMultiplayer) {
             finalRank = networkManager.myFinishRank;
             if (!finalRank) {
-                const finishedCount = networkManager.roomPlayers.filter(p => p.finished).length;
+                const finishedCount = networkManager.roomPlayers.filter(p => p.finished && p.id !== networkManager.playerId).length;
                 finalRank = finishedCount + 1;
             }
             finalRank = Math.max(1, Math.min(finalRank, this.totalTournamentPlayers));
@@ -919,24 +919,6 @@ export class MainScene extends Scene {
             finalRank = Math.max(1, Math.min(finalRank, this.totalTournamentPlayers));
         }
 
-        let podiumData = networkManager.roomPodium.length > 0
-            ? networkManager.roomPodium
-            : undefined;
-
-        if (!podiumData && !this.isMultiplayer) {
-            const rivalPool = ['Aero-1', 'Solaris', 'Hydro-X', 'Volt-9', 'TerraPulse'];
-            const r1 = finalRank === 1 ? 'TÚ' : rivalPool[0];
-            const r2 = finalRank === 2 ? 'TÚ' : rivalPool[1];
-            const r3 = finalRank === 3 ? 'TÚ' : rivalPool[2];
-            const baseTime = Number(totalTimeSeconds);
-
-            podiumData = [
-                { rank: 1, playerId: 'p1', finishTimeMs: Math.round(Number(totalTimeSeconds) * 1000), name: r1, timeSec: finalRank === 1 ? totalTimeSeconds : (Math.max(37, baseTime - 1.5)).toFixed(1) },
-                { rank: 2, playerId: 'p2', finishTimeMs: Math.round((Number(totalTimeSeconds) + 0.9) * 1000), name: r2, timeSec: finalRank === 2 ? totalTimeSeconds : (finalRank === 1 ? (baseTime + 0.9).toFixed(1) : (baseTime - 0.5).toFixed(1)) },
-                { rank: 3, playerId: 'p3', finishTimeMs: Math.round((Number(totalTimeSeconds) + 2.1) * 1000), name: r3, timeSec: finalRank === 3 ? totalTimeSeconds : (finalRank <= 2 ? (baseTime + 2.1).toFixed(1) : (baseTime + 0.8).toFixed(1)) }
-            ];
-        }
-
         this.scene.stop('HudScene');
         this.cameras.main.fadeOut(250, 241, 245, 249);
         this.time.delayedCall(250, () => {
@@ -944,6 +926,24 @@ export class MainScene extends Scene {
                 ? networkManager.myFinishRank
                 : finalRank;
             const validRank = Math.max(1, Math.min(authoritativeRank, this.totalTournamentPlayers));
+
+            let podiumData = networkManager.roomPodium.length > 0
+                ? [...networkManager.roomPodium]
+                : undefined;
+
+            if (!podiumData && !this.isMultiplayer) {
+                const rivalPool = ['Aero-1', 'Solaris', 'Hydro-X', 'Volt-9', 'TerraPulse'];
+                const r1 = finalRank === 1 ? 'TÚ' : rivalPool[0];
+                const r2 = finalRank === 2 ? 'TÚ' : rivalPool[1];
+                const r3 = finalRank === 3 ? 'TÚ' : rivalPool[2];
+                const baseTime = Number(totalTimeSeconds);
+
+                podiumData = [
+                    { rank: 1, playerId: 'p1', finishTimeMs: Math.round(Number(totalTimeSeconds) * 1000), name: r1, timeSec: finalRank === 1 ? totalTimeSeconds : (Math.max(37, baseTime - 1.5)).toFixed(1) },
+                    { rank: 2, playerId: 'p2', finishTimeMs: Math.round((Number(totalTimeSeconds) + 0.9) * 1000), name: r2, timeSec: finalRank === 2 ? totalTimeSeconds : (finalRank === 1 ? (baseTime + 0.9).toFixed(1) : (baseTime - 0.5).toFixed(1)) },
+                    { rank: 3, playerId: 'p3', finishTimeMs: Math.round((Number(totalTimeSeconds) + 2.1) * 1000), name: r3, timeSec: finalRank === 3 ? totalTimeSeconds : (finalRank <= 2 ? (baseTime + 2.1).toFixed(1) : (baseTime + 0.8).toFixed(1)) }
+                ];
+            }
 
             this.scene.start('WinScene', {
                 mode: 'race',
